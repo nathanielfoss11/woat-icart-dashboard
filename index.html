@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>iCart Lead &amp; Join Dashboard</title>
+<style>
+  :root{
+    color-scheme: light dark;
+    --page:#f9f9f7; --surface:#fcfcfb; --text:#0b0b0b; --text2:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --baseline:#c3c2b7; --border:rgba(11,11,11,0.10);
+    --blue:#2a78d6; --green:#008300; --red:#e34948; --good:#006300;
+  }
+  @media (prefers-color-scheme: dark){ :root:where(:not([data-theme="light"])){
+    --page:#0d0d0d; --surface:#1a1a19; --text:#fff; --text2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,0.10);
+    --blue:#3987e5; --green:#008300; --red:#e66767; --good:#0ca30c; } }
+  :root[data-theme="dark"]{
+    --page:#0d0d0d; --surface:#1a1a19; --text:#fff; --text2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,0.10);
+    --blue:#3987e5; --green:#008300; --red:#e66767; --good:#0ca30c; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1160px;margin:0 auto;padding:28px 24px 60px}
+  header.top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+  h1{font-size:22px;margin:0;letter-spacing:-0.01em}
+  .sub{color:var(--text2);font-size:13px;margin-top:4px}
+  .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  select,button{font:inherit;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;cursor:pointer}
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin:22px 0}
+  @media (max-width:920px){.kpis{grid-template-columns:repeat(3,1fr)}}
+  @media (max-width:560px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  .tile{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 15px}
+  .tile .label{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .tile .val{font-size:26px;font-weight:650;margin-top:8px;letter-spacing:-0.02em}
+  .grid2{display:grid;grid-template-columns:1.55fr 1fr;gap:18px;margin-bottom:18px}
+  @media (max-width:860px){.grid2{grid-template-columns:1fr}}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 18px 12px}
+  .card h2{font-size:14px;margin:0 0 2px}
+  .card .cap{font-size:12px;color:var(--muted);margin:0 0 12px}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text2);margin:2px 0 8px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .swatch{width:10px;height:10px;border-radius:3px;display:inline-block}
+  svg{display:block;width:100%;overflow:visible}
+  .axis{fill:var(--muted);font-size:11px}
+  .gl{stroke:var(--grid);stroke-width:1}.baseline{stroke:var(--baseline);stroke-width:1}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+  th,td{text-align:right;padding:8px 6px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums}
+  th:first-child,td:first-child{text-align:left;font-variant-numeric:normal}
+  th{color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em}
+  .tip{position:fixed;pointer-events:none;opacity:0;transition:opacity .08s;z-index:20;background:var(--text);color:var(--page);font-size:12px;padding:7px 9px;border-radius:7px;box-shadow:0 6px 20px rgba(0,0,0,.18);white-space:nowrap}
+  .note{margin:16px 0;font-size:13px;color:var(--text2);background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:8px;padding:12px 14px}
+  .foot{margin-top:26px;font-size:11.5px;color:var(--muted);line-height:1.6}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Workout Anytime — Lead &amp; Join Report</h1>
+      <div class="sub" id="sub">iCart online joins · loading…</div>
+    </div>
+    <div class="controls">
+      <select id="yearSel" aria-label="Period"></select>
+      <button id="refresh" type="button">↻ Refresh</button>
+      <button id="themeBtn" type="button">◐ Theme</button>
+    </div>
+  </header>
+
+  <div id="status" class="note">Connecting to the database…</div>
+
+  <section class="kpis" id="kpis" style="display:none"></section>
+
+  <div class="grid2" id="charts" style="display:none">
+    <div class="card">
+      <h2>Entries vs. Joins by month</h2>
+      <p class="cap">People who started checkout, and how many joined.</p>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--blue)"></i>Entries</span>
+        <span><i class="swatch" style="background:var(--green)"></i>Joins</span>
+      </div>
+      <div id="lineChart"></div>
+    </div>
+    <div class="card">
+      <h2>Outcome split</h2>
+      <p class="cap">Joined vs. lost for the selected period.</p>
+      <div id="donut"></div>
+    </div>
+  </div>
+
+  <div class="card" id="locCard" style="display:none">
+    <h2>Top locations</h2>
+    <p class="cap">Joins by club, with conversion rate.</p>
+    <div id="bars"></div>
+    <table id="locTable">
+      <thead><tr><th>Club</th><th>Entries</th><th>Joins</th><th>Lost</th><th>Conv.</th><th>Join value</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <p class="foot" id="foot"></p>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+// ===== EDIT THIS if your report function's URL is different =====
+const REPORT_URL = "https://vxfhxgtcwczvoewozgws.supabase.co/functions/v1/report";
+
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const n = v => Number(v || 0);
+const fmt = x => Math.round(n(x)).toLocaleString("en-US");
+const money = x => { x=n(x); return "$"+(Math.abs(x)>=1e6 ? (x/1e6).toFixed(2)+"M" : x.toLocaleString("en-US",{maximumFractionDigits:0})); };
+const pct = x => (n(x)).toFixed(1)+"%";
+const tip = document.getElementById("tip");
+const cssv = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+function showTip(h,e){ tip.innerHTML=h; tip.style.opacity=1; tip.style.left=Math.min(e.clientX+12,innerWidth-tip.offsetWidth-12)+"px"; tip.style.top=(e.clientY+12)+"px"; }
+function hideTip(){ tip.style.opacity=0; }
+window.showTip=showTip; window.hideTip=hideTip;
+
+let DATA = null;
+
+async function load(){
+  const status = document.getElementById("status");
+  status.style.display="block";
+  status.textContent = "Connecting to the database…";
+  try{
+    const r = await fetch(REPORT_URL, {cache:"no-store"});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    DATA = await r.json();
+    if(DATA.error) throw new Error(DATA.error);
+    if(!DATA.by_year || DATA.by_year.length===0){
+      status.innerHTML = "Connected — no entries yet. As real checkouts come in (and once 2025 is imported), the numbers appear here. <br>Click ↻ Refresh anytime.";
+      document.getElementById("kpis").style.display="none";
+      document.getElementById("charts").style.display="none";
+      document.getElementById("locCard").style.display="none";
+      buildYearSel();
+      return;
+    }
+    status.style.display="none";
+    buildYearSel();
+    render();
+  }catch(e){
+    status.innerHTML = "Couldn't reach the report function ("+e.message+").<br>Check that it's deployed and that REPORT_URL in this file matches its address.";
+  }
+}
+
+function years(){ return DATA.by_year.map(r=>r.year).sort((a,b)=>b-a); }
+function buildYearSel(){
+  const sel=document.getElementById("yearSel");
+  const ys = DATA && DATA.by_year ? years() : [];
+  sel.innerHTML = `<option value="all">All time</option>` + ys.map(y=>`<option value="${y}">${y}</option>`).join("");
+  sel.onchange = render;
+}
+
+function selectedRows(){
+  const y = document.getElementById("yearSel").value;
+  if(y==="all") return {year:"All time"};
+  return {year:Number(y)};
+}
+
+function totals(){
+  const sel = document.getElementById("yearSel").value;
+  const rows = sel==="all" ? DATA.by_year : DATA.by_year.filter(r=>String(r.year)===sel);
+  const t = {entries:0,joins:0,lost:0,jv:0,lv:0};
+  rows.forEach(r=>{ t.entries+=n(r.entries); t.joins+=n(r.joins); t.lost+=n(r.lost_joins); t.jv+=n(r.join_contract_value); t.lv+=n(r.lead_contract_value); });
+  t.conv = t.entries ? (100*t.joins/t.entries) : 0;
+  return t;
+}
+
+function render(){
+  document.getElementById("kpis").style.display="grid";
+  document.getElementById("charts").style.display="grid";
+  document.getElementById("locCard").style.display="block";
+  const sel = document.getElementById("yearSel").value;
+  document.getElementById("sub").textContent = "iCart online joins · " + (sel==="all"?"all time":sel);
+  const t = totals();
+  const kpis=[
+    {label:"Entries",val:fmt(t.entries)},
+    {label:"Joins",val:fmt(t.joins)},
+    {label:"Lost Joins",val:fmt(t.lost)},
+    {label:"Conversion",val:pct(t.conv)},
+    {label:"Join Value",val:money(t.jv)},
+    {label:"Lost Value",val:money(t.lv)},
+  ];
+  document.getElementById("kpis").innerHTML = kpis.map(k=>`<div class="tile"><div class="label">${k.label}</div><div class="val">${k.val}</div></div>`).join("");
+  drawLine(); drawDonut(t); drawBars();
+  const gen = DATA.generated_at ? new Date(DATA.generated_at).toLocaleString() : "";
+  document.getElementById("foot").textContent = "Live from the iCart database. Last updated "+gen+". Metrics: Entries, Joins, Lost Joins, Conversion, Join & Lead Contract Value — by month and location.";
+}
+
+function monthlySeries(){
+  // aggregate by_day into YYYY-MM, filtered by selected year
+  const sel=document.getElementById("yearSel").value;
+  const map={};
+  (DATA.by_day||[]).forEach(d=>{
+    const ym=(d.day||"").slice(0,7); if(!ym) return;
+    if(sel!=="all" && ym.slice(0,4)!==sel) return;
+    if(!map[ym]) map[ym]={entries:0,joins:0};
+    map[ym].entries+=n(d.entries); map[ym].joins+=n(d.joins);
+  });
+  const keys=Object.keys(map).sort().slice(-12);
+  return keys.map(k=>({label:MONTHS[Number(k.slice(5,7))-1]+" '"+k.slice(2,4), entries:map[k].entries, joins:map[k].joins}));
+}
+
+function drawLine(){
+  const s=monthlySeries();
+  const el=document.getElementById("lineChart");
+  if(s.length===0){ el.innerHTML=`<p class="cap">No daily data in range yet.</p>`; return; }
+  const W=680,H=250,P={l:44,r:14,t:12,b:28},iw=W-P.l-P.r,ih=H-P.t-P.b;
+  const max=Math.max(2000,Math.ceil(Math.max(...s.map(d=>d.entries))/2000)*2000);
+  const x=i=>P.l+(s.length<2?iw/2:(i/(s.length-1))*iw), y=v=>P.t+ih-(v/max)*ih;
+  let g="";
+  for(let t=0;t<=max;t+=Math.max(2000,max/5)){ g+=`<line class="gl" x1="${P.l}" y1="${y(t)}" x2="${W-P.r}" y2="${y(t)}"/><text class="axis" x="${P.l-8}" y="${y(t)+4}" text-anchor="end">${Math.round(t/1000)}k</text>`; }
+  s.forEach((d,i)=> g+=`<text class="axis" x="${x(i)}" y="${H-8}" text-anchor="middle">${d.label}</text>`);
+  const path=(key,c)=>{ let d=s.map((v,i)=>(i?"L":"M")+x(i)+" "+y(v[key])).join(" "); return `<path d="${d}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`; };
+  let dots="";
+  s.forEach((d,i)=>{ dots+=mk(x(i),y(d.entries),cssv('--blue'),"Entries",d.label,d.entries)+mk(x(i),y(d.joins),cssv('--green'),"Joins",d.label,d.joins); });
+  function mk(cx,cy,c,name,lab,v){ return `<circle cx="${cx}" cy="${cy}" r="8" fill="transparent" onmousemove="showTip('<b>${lab}</b><br>${name}: ${fmt(v)}',event)" onmouseleave="hideTip()"/><circle cx="${cx}" cy="${cy}" r="3.2" fill="${c}"/>`; }
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${g}<line class="baseline" x1="${P.l}" y1="${y(0)}" x2="${W-P.r}" y2="${y(0)}"/>${path('entries',cssv('--blue'))}${path('joins',cssv('--green'))}${dots}</svg>`;
+}
+
+function drawDonut(t){
+  const el=document.getElementById("donut");
+  const total=t.joins+t.lost;
+  if(total===0){ el.innerHTML=`<p class="cap">No outcomes in range yet.</p>`; return; }
+  const S=210,r=78,cx=S/2,cy=110,cir=2*Math.PI*r;
+  const segs=[{name:"Joined",v:t.joins,c:cssv('--green')},{name:"Lost",v:t.lost,c:cssv('--red')}];
+  let off=0,arcs="";
+  segs.forEach(s=>{ const len=(s.v/total)*cir; arcs+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.c}" stroke-width="22" stroke-dasharray="${len-3} ${cir-len+3}" stroke-dashoffset="${-off}" transform="rotate(-90 ${cx} ${cy})" onmousemove="showTip('<b>${s.name}</b><br>${fmt(s.v)} · ${pct(100*s.v/total)}',event)" onmouseleave="hideTip()"/>`; off+=len; });
+  el.innerHTML=`<svg viewBox="0 0 ${S} 250">${arcs}
+    <text x="${cx}" y="${cy-4}" text-anchor="middle" style="font-size:24px;font-weight:650;fill:var(--text)">${pct(t.conv)}</text>
+    <text x="${cx}" y="${cy+16}" text-anchor="middle" class="axis">converted</text>
+    <g transform="translate(58,214)"><circle cx="0" cy="-4" r="5" fill="${cssv('--green')}"/><text x="12" y="0" class="axis" style="fill:var(--text2)">Joined ${fmt(t.joins)}</text></g>
+    <g transform="translate(58,234)"><circle cx="0" cy="-4" r="5" fill="${cssv('--red')}"/><text x="12" y="0" class="axis" style="fill:var(--text2)">Lost ${fmt(t.lost)}</text></g></svg>`;
+}
+
+function drawBars(){
+  const sel=document.getElementById("yearSel").value;
+  const map={};
+  (DATA.by_location||[]).forEach(r=>{
+    if(sel!=="all" && String(r.year)!==sel) return;
+    const k=r.location||"—"; if(!map[k]) map[k]={location:k,entries:0,joins:0,lost:0,value:0};
+    map[k].entries+=n(r.entries); map[k].joins+=n(r.joins); map[k].lost+=n(r.lost_joins); map[k].value+=n(r.join_contract_value);
+  });
+  let rows=Object.values(map).map(r=>({...r,conv:r.entries?100*r.joins/r.entries:0})).sort((a,b)=>b.joins-a.joins);
+  const barEl=document.getElementById("bars"), tb=document.querySelector("#locTable tbody");
+  if(rows.length===0){ barEl.innerHTML=`<p class="cap">No location data in range yet.</p>`; tb.innerHTML=""; return; }
+  const top=rows.slice(0,8);
+  const W=680,rowH=34,P={l:74,r:70,t:6},iw=W-P.l-P.r,max=Math.max(...top.map(r=>r.joins),1),H=P.t+top.length*rowH+6;
+  let s="";
+  top.forEach((r,i)=>{ const w=(r.joins/max)*iw,yy=P.t+i*rowH+8;
+    s+=`<text class="axis" x="${P.l-10}" y="${yy+13}" text-anchor="end" style="fill:var(--text2)">Club ${r.location}</text>
+      <rect x="${P.l}" y="${yy}" width="${Math.max(w,2)}" height="18" rx="4" fill="${cssv('--blue')}" onmousemove="showTip('<b>Club ${r.location}</b><br>Joins: ${fmt(r.joins)} · Conv ${pct(r.conv)}',event)" onmouseleave="hideTip()"/>
+      <text class="axis" x="${P.l+Math.max(w,2)+8}" y="${yy+13}" style="fill:var(--text2)">${fmt(r.joins)} · ${pct(r.conv)}</text>`; });
+  barEl.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${s}</svg>`;
+  tb.innerHTML=rows.map(r=>`<tr><td>Club ${r.location}</td><td>${fmt(r.entries)}</td><td>${fmt(r.joins)}</td><td>${fmt(r.lost)}</td><td>${pct(r.conv)}</td><td>${money(r.value)}</td></tr>`).join("");
+}
+
+document.getElementById("refresh").onclick=load;
+document.getElementById("themeBtn").onclick=()=>{
+  const cur=document.documentElement.getAttribute("data-theme");
+  const next=cur==="dark"?"light":(cur==="light"?"dark":(matchMedia("(prefers-color-scheme: dark)").matches?"light":"dark"));
+  document.documentElement.setAttribute("data-theme",next);
+  if(DATA && DATA.by_year && DATA.by_year.length) render();
+};
+load();
+</script>
+</body>
+</html>
