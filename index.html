@@ -75,11 +75,26 @@
         <input type="date" id="fromDate"><span class="arrow">&rarr;</span><input type="date" id="toDate">
         <button id="applyBtn" type="button">Apply</button>
       </span>
-      <button id="csvBtn" type="button" title="Download the club table as CSV">&#8681; CSV</button>
+      <button id="csvBtn" type="button" title="Download the club summary table as CSV">&#8681; CSV</button>
+      <button id="piiBtn" type="button" style="display:none;border-color:var(--blue)" title="Export individual customer details (name, email, phone) for the selected range">&#8681; Member details</button>
       <button id="refresh" type="button">&#8635; Refresh</button>
       <button id="themeBtn" type="button">&#9680; Theme</button>
+      <button id="authBtn" type="button" title="Sign in to export full customer details">&#128274; Member login</button>
     </div>
   </header>
+
+  <div id="authPanel" class="note" style="display:none;border-left-color:var(--green)">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <strong>Member sign-in</strong>
+      <span style="color:var(--muted)">Individual customer details are restricted to invited users.</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email"
+        style="min-width:240px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font:inherit">
+      <button id="sendLink" type="button" style="border-color:var(--green)">Email me a login link</button>
+      <span id="authMsg" style="color:var(--text2)"></span>
+    </div>
+  </div>
 
   <div id="status" class="note">Connecting to the database&hellip;</div>
   <section class="kpis" id="kpis" style="display:none"></section>
@@ -119,6 +134,7 @@
 .rangebox{display:inline-flex;align-items:center;gap:6px}
 .rangebox .arrow{color:var(--text2)}
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 const SUPA="https://vxfhxgtcwczvoewozgws.supabase.co";
 const ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4Zmh4Z3Rjd2N6dm9ld296Z3dzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MDA0MDQsImV4cCI6MjEwMDE3NjQwNH0.QormaoIOYkKhEciBcy9EjSKHU853nMafouj1_52hRHA";
@@ -257,6 +273,56 @@ document.getElementById("themeBtn").onclick=()=>{
   document.documentElement.setAttribute("data-theme",next); if(DATA) render();
 };
 (function(){ const [f,t]=presetRange("30"); load(f,t); })();
+
+/* ---------- Member auth + individual (PII) export ---------- */
+const sb = window.supabase.createClient(SUPA, ANON, {auth:{persistSession:true, autoRefreshToken:true, detectSessionInUrl:true}});
+const authBtn=document.getElementById("authBtn"), piiBtn=document.getElementById("piiBtn"),
+      authPanel=document.getElementById("authPanel"), authMsg=document.getElementById("authMsg");
+
+async function currentSession(){ const {data}=await sb.auth.getSession(); return data.session; }
+async function refreshAuthUI(){
+  const session=await currentSession(), authed=!!session;
+  piiBtn.style.display = authed ? "" : "none";
+  if(authed){ authBtn.textContent="⏻ "+(session.user.email||"Sign out"); authBtn.title="Signed in — click to sign out"; authPanel.style.display="none"; }
+  else { authBtn.innerHTML="&#128274; Member login"; authBtn.title="Sign in to export full customer details"; }
+}
+authBtn.onclick=async()=>{
+  const session=await currentSession();
+  if(session){ await sb.auth.signOut(); refreshAuthUI(); }
+  else { authPanel.style.display = (authPanel.style.display==="none"||!authPanel.style.display) ? "block" : "none"; if(authPanel.style.display==="block") document.getElementById("authEmail").focus(); }
+};
+document.getElementById("sendLink").onclick=async()=>{
+  const email=(document.getElementById("authEmail").value||"").trim();
+  if(!email){ authMsg.textContent="Enter your email address."; return; }
+  authMsg.textContent="Sending…";
+  const {error}=await sb.auth.signInWithOtp({email, options:{shouldCreateUser:false, emailRedirectTo:location.origin}});
+  authMsg.textContent = error ? ("Couldn’t send: "+error.message) : "Check your email for a login link, then return here.";
+};
+async function exportPII(){
+  const session=await currentSession();
+  if(!session){ authPanel.style.display="block"; authMsg.textContent="Please sign in first."; return; }
+  if(!RANGE){ return; }
+  const [from,to]=RANGE, orig=piiBtn.textContent;
+  piiBtn.textContent="… loading";
+  try{
+    const r=await fetch(SUPA+"/rest/v1/rpc/report_detail",{method:"POST",
+      headers:{apikey:ANON, Authorization:"Bearer "+session.access_token, "Content-Type":"application/json"},
+      body:JSON.stringify({p_from:from,p_to:to})});
+    if(r.status===401||r.status===403){ piiBtn.textContent=orig; authPanel.style.display="block"; authMsg.textContent="Your access isn’t authorized for member details."; return; }
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const rows=await r.json();
+    const head=["Checkout ID","Status","Club","Location","First Name","Last Name","Email","Phone","Plan","Recurring Price","Contract Value","Platform","Lead At","Joined At","Lost At"];
+    const lines=[head.join(",")];
+    rows.forEach(x=>lines.push([x.checkout_id,x.status,x.club,x.location,x.first_name,x.last_name,x.email,x.phone,x.plan,x.recurring_price,x.contract_value,x.platform,x.lead_at,x.joined_at,x.lost_at].map(csvCell).join(",")));
+    const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"}), a=document.createElement("a");
+    a.href=URL.createObjectURL(blob); a.download="woat-member-details_"+from+"_to_"+to+".csv"; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  }catch(e){ authMsg.textContent="Export failed ("+e.message+")."; authPanel.style.display="block"; }
+  piiBtn.textContent=orig;
+}
+piiBtn.onclick=exportPII;
+sb.auth.onAuthStateChange(()=>refreshAuthUI());
+refreshAuthUI();
 </script>
 </body>
 </html>
