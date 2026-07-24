@@ -257,7 +257,7 @@ function drawDonut(t){
 function clubRows(){
   return (DATA.by_location||[]).map(r=>({location:r.location||"—",client:r.client||"",entries:n(r.entries),joins:n(r.joins),lost:n(r.lost_joins),value:n(r.join_contract_value),leadval:n(r.lead_contract_value),conv:n(r.conversion_rate)}));
 }
-let SORT={key:"joins", dir:"desc"};
+let SORT={key:"entries", dir:"desc"};
 function sortClubRows(rows){
   const {key,dir}=SORT, mul=dir==="asc"?1:-1, out=rows.slice();
   if(key==="club"){ out.sort((a,b)=> mul*String(a.location).localeCompare(String(b.location))); }
