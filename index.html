@@ -58,23 +58,35 @@
 <div class="wrap">
   <header class="top">
     <div>
-      <h1>Workout Anytime — Lead &amp; Join Report</h1>
-      <div class="sub" id="sub">iCart online joins · loading…</div>
+      <h1>Workout Anytime &mdash; Lead &amp; Join Report</h1>
+      <div class="sub" id="sub">iCart online joins &middot; loading&hellip;</div>
     </div>
     <div class="controls">
-      <select id="yearSel" aria-label="Period"></select>
-      <button id="refresh" type="button">↻ Refresh</button>
-      <button id="themeBtn" type="button">◐ Theme</button>
+      <select id="preset" aria-label="Date range">
+        <option value="30">Last 30 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="ytd">This year</option>
+        <option value="2026">2026</option>
+        <option value="2025">2025</option>
+        <option value="all">All time</option>
+        <option value="custom">Custom&hellip;</option>
+      </select>
+      <span class="rangebox" id="rangebox" style="display:none">
+        <input type="date" id="fromDate"><span class="arrow">&rarr;</span><input type="date" id="toDate">
+        <button id="applyBtn" type="button">Apply</button>
+      </span>
+      <button id="csvBtn" type="button" title="Download the club table as CSV">&#8681; CSV</button>
+      <button id="refresh" type="button">&#8635; Refresh</button>
+      <button id="themeBtn" type="button">&#9680; Theme</button>
     </div>
   </header>
 
-  <div id="status" class="note">Connecting to the database…</div>
-
+  <div id="status" class="note">Connecting to the database&hellip;</div>
   <section class="kpis" id="kpis" style="display:none"></section>
 
   <div class="grid2" id="charts" style="display:none">
     <div class="card">
-      <h2>Entries vs. Joins by month</h2>
+      <h2>Entries vs. Joins over time</h2>
       <p class="cap">People who started checkout, and how many joined.</p>
       <div class="legend">
         <span><i class="swatch" style="background:var(--blue)"></i>Entries</span>
@@ -84,14 +96,14 @@
     </div>
     <div class="card">
       <h2>Outcome split</h2>
-      <p class="cap">Joined vs. lost for the selected period.</p>
+      <p class="cap">Joined vs. lost for the selected range.</p>
       <div id="donut"></div>
     </div>
   </div>
 
   <div class="card" id="locCard" style="display:none">
-    <h2>Top locations</h2>
-    <p class="cap">Joins by club, with conversion rate.</p>
+    <h2>Clubs</h2>
+    <p class="cap">Entries, joins and conversion by club for the selected range &mdash; click &#8681; CSV to export.</p>
     <div id="bars"></div>
     <table id="locTable">
       <thead><tr><th>Club</th><th>Entries</th><th>Joins</th><th>Lost</th><th>Conv.</th><th>Join value</th></tr></thead>
@@ -102,132 +114,101 @@
   <p class="foot" id="foot"></p>
 </div>
 <div class="tip" id="tip"></div>
-
+<style>
+.controls input[type=date]{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit}
+.rangebox{display:inline-flex;align-items:center;gap:6px}
+.rangebox .arrow{color:var(--text2)}
+</style>
 <script>
-// ===== EDIT THIS if your report function's URL is different =====
-const REPORT_URL = "https://vxfhxgtcwczvoewozgws.supabase.co/functions/v1/report";
+const SUPA="https://vxfhxgtcwczvoewozgws.supabase.co";
+const ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4Zmh4Z3Rjd2N6dm9ld296Z3dzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MDA0MDQsImV4cCI6MjEwMDE3NjQwNH0.QormaoIOYkKhEciBcy9EjSKHU853nMafouj1_52hRHA";
+const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const n=v=>Number(v||0);
+const fmt=x=>Math.round(n(x)).toLocaleString("en-US");
+const money=x=>{x=n(x);return "$"+(Math.abs(x)>=1e6?(x/1e6).toFixed(2)+"M":x.toLocaleString("en-US",{maximumFractionDigits:0}))};
+const pct=x=>(n(x)).toFixed(1)+"%";
+const tip=document.getElementById("tip");
+const cssv=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+function showTip(h,e){tip.innerHTML=h;tip.style.opacity=1;tip.style.left=Math.min(e.clientX+12,innerWidth-tip.offsetWidth-12)+"px";tip.style.top=(e.clientY+12)+"px";}
+function hideTip(){tip.style.opacity=0;}
+window.showTip=showTip;window.hideTip=hideTip;
 
-const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const n = v => Number(v || 0);
-const fmt = x => Math.round(n(x)).toLocaleString("en-US");
-const money = x => { x=n(x); return "$"+(Math.abs(x)>=1e6 ? (x/1e6).toFixed(2)+"M" : x.toLocaleString("en-US",{maximumFractionDigits:0})); };
-const pct = x => (n(x)).toFixed(1)+"%";
-const tip = document.getElementById("tip");
-const cssv = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
-function showTip(h,e){ tip.innerHTML=h; tip.style.opacity=1; tip.style.left=Math.min(e.clientX+12,innerWidth-tip.offsetWidth-12)+"px"; tip.style.top=(e.clientY+12)+"px"; }
-function hideTip(){ tip.style.opacity=0; }
-window.showTip=showTip; window.hideTip=hideTip;
+const pad=x=>String(x).padStart(2,"0");
+const ymd=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+function presetRange(p){
+  const today=new Date(), t=ymd(today);
+  const back=k=>{const d=new Date(today);d.setDate(d.getDate()-k);return ymd(d);};
+  if(p==="30")return[back(29),t];
+  if(p==="90")return[back(89),t];
+  if(p==="ytd")return[today.getFullYear()+"-01-01",t];
+  if(p==="2026")return["2026-01-01","2026-12-31"];
+  if(p==="2025")return["2025-01-01","2025-12-31"];
+  if(p==="all")return["2015-01-01",t];
+  return null;
+}
 
-let DATA = null;
+let DATA=null, RANGE=null;
 
-async function load(){
-  const status = document.getElementById("status");
-  status.style.display="block";
-  status.textContent = "Connecting to the database…";
+async function load(from,to){
+  const status=document.getElementById("status"); RANGE=[from,to];
+  status.style.display="block"; status.textContent="Loading "+from+" → "+to+" …";
   try{
-    const r = await fetch(REPORT_URL, {cache:"no-store"});
+    const r=await fetch(SUPA+"/rest/v1/rpc/report_range",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify({p_from:from,p_to:to})});
     if(!r.ok) throw new Error("HTTP "+r.status);
-    DATA = await r.json();
+    DATA=await r.json();
     if(DATA.error) throw new Error(DATA.error);
-    if(!DATA.by_year || DATA.by_year.length===0){
-      status.innerHTML = "Connected — no entries yet. As real checkouts come in (and once 2025 is imported), the numbers appear here. <br>Click ↻ Refresh anytime.";
-      document.getElementById("kpis").style.display="none";
-      document.getElementById("charts").style.display="none";
-      document.getElementById("locCard").style.display="none";
-      buildYearSel();
-      return;
-    }
-    status.style.display="none";
-    buildYearSel();
-    render();
-  }catch(e){
-    status.innerHTML = "Couldn't reach the report function ("+e.message+").<br>Check that it's deployed and that REPORT_URL in this file matches its address.";
-  }
+    status.style.display="none"; render();
+  }catch(e){ status.innerHTML="Couldn't load the report ("+e.message+").<br>Click &#8635; Refresh to try again."; }
 }
 
-function years(){ return DATA.by_year.map(r=>r.year).sort((a,b)=>b-a); }
-function buildYearSel(){
-  const sel=document.getElementById("yearSel");
-  const ys = DATA && DATA.by_year ? years() : [];
-  sel.innerHTML = `<option value="all">All time</option>` + ys.map(y=>`<option value="${y}">${y}</option>`).join("");
-  sel.onchange = render;
-}
-
-function selectedRows(){
-  const y = document.getElementById("yearSel").value;
-  if(y==="all") return {year:"All time"};
-  return {year:Number(y)};
-}
-
-function totals(){
-  const sel = document.getElementById("yearSel").value;
-  const rows = sel==="all" ? DATA.by_year : DATA.by_year.filter(r=>String(r.year)===sel);
-  const t = {entries:0,joins:0,lost:0,jv:0,lv:0};
-  rows.forEach(r=>{ t.entries+=n(r.entries); t.joins+=n(r.joins); t.lost+=n(r.lost_joins); t.jv+=n(r.join_contract_value); t.lv+=n(r.lead_contract_value); });
-  t.conv = t.entries ? (100*t.joins/t.entries) : 0;
-  return t;
+function rangeLabel(){
+  const f=new Date(DATA.from+"T00:00:00"), t=new Date(DATA.to+"T00:00:00"), o={month:"short",day:"numeric"};
+  return f.toLocaleDateString("en-US",o)+" – "+t.toLocaleDateString("en-US",Object.assign({year:"numeric"},o));
 }
 
 function render(){
   document.getElementById("kpis").style.display="grid";
   document.getElementById("charts").style.display="grid";
   document.getElementById("locCard").style.display="block";
-  const sel = document.getElementById("yearSel").value;
-  document.getElementById("sub").textContent = "iCart online joins · " + (sel==="all"?"all time":sel);
-  const t = totals();
-  const kpis=[
-    {label:"Entries",val:fmt(t.entries)},
-    {label:"Joins",val:fmt(t.joins)},
-    {label:"Lost Joins",val:fmt(t.lost)},
-    {label:"Conversion",val:pct(t.conv)},
-    {label:"Join Value",val:money(t.jv)},
-    {label:"Lost Value",val:money(t.lv)},
-  ];
-  document.getElementById("kpis").innerHTML = kpis.map(k=>`<div class="tile"><div class="label">${k.label}</div><div class="val">${k.val}</div></div>`).join("");
-  drawLine(); drawDonut(t); drawBars();
-  const gen = DATA.generated_at ? new Date(DATA.generated_at).toLocaleString() : "";
-  document.getElementById("foot").textContent = "Live from the iCart database. Last updated "+gen+". Metrics: Entries, Joins, Lost Joins, Conversion, Join & Lead Contract Value — by month and location.";
+  const s=DATA.summary||{}, conv=n(s.conversion_rate);
+  document.getElementById("sub").textContent="iCart online joins · "+rangeLabel();
+  const kpis=[{label:"Entries",val:fmt(s.entries)},{label:"Joins",val:fmt(s.joins)},{label:"Lost Joins",val:fmt(s.lost_joins)},{label:"Conversion",val:conv.toFixed(1)+"%"},{label:"Join Value",val:money(s.join_contract_value)},{label:"Lost Value",val:money(s.lead_contract_value)}];
+  document.getElementById("kpis").innerHTML=kpis.map(k=>`<div class="tile"><div class="label">${k.label}</div><div class="val">${k.val}</div></div>`).join("");
+  drawLine(); drawDonut({joins:n(s.joins),lost:n(s.lost_joins),conv:conv}); drawBars();
+  document.getElementById("foot").textContent="Live from the iCart database · unique-person counts · range "+DATA.from+" to "+DATA.to+".";
 }
 
-function monthlySeries(){
-  // aggregate by_day into YYYY-MM, filtered by selected year
-  const sel=document.getElementById("yearSel").value;
-  const map={};
-  (DATA.by_day||[]).forEach(d=>{
-    const ym=(d.day||"").slice(0,7); if(!ym) return;
-    if(sel!=="all" && ym.slice(0,4)!==sel) return;
-    if(!map[ym]) map[ym]={entries:0,joins:0};
-    map[ym].entries+=n(d.entries); map[ym].joins+=n(d.joins);
-  });
-  const keys=Object.keys(map).sort().slice(-12);
-  return keys.map(k=>({label:MONTHS[Number(k.slice(5,7))-1]+" '"+k.slice(2,4), entries:map[k].entries, joins:map[k].joins}));
+function series(){
+  const bd={}; (DATA.by_day||[]).forEach(d=>bd[d.day]={entries:n(d.entries),joins:n(d.joins)});
+  const from=new Date(DATA.from+"T00:00:00"), to=new Date(DATA.to+"T00:00:00"), span=Math.round((to-from)/86400000)+1;
+  if(span<=92){ const pts=[]; for(let dt=new Date(from);dt<=to;dt.setDate(dt.getDate()+1)){const k=ymd(dt),v=bd[k]||{entries:0,joins:0};pts.push({label:(dt.getMonth()+1)+"/"+dt.getDate(),entries:v.entries,joins:v.joins});} return pts; }
+  const m={}; (DATA.by_day||[]).forEach(d=>{const ym=(d.day||"").slice(0,7);if(!ym)return;(m[ym]=m[ym]||{entries:0,joins:0});m[ym].entries+=n(d.entries);m[ym].joins+=n(d.joins);});
+  return Object.keys(m).sort().map(k=>({label:MONTHS[+k.slice(5,7)-1]+" '"+k.slice(2,4),entries:m[k].entries,joins:m[k].joins}));
 }
+function niceMax(v){ if(v<=10)return 10; const p=Math.pow(10,Math.floor(Math.log10(v))), f=v/p; return (f<=1?1:f<=2?2:f<=5?5:10)*p; }
 
 function drawLine(){
-  const s=monthlySeries();
-  const el=document.getElementById("lineChart");
-  if(s.length===0){ el.innerHTML=`<p class="cap">No daily data in range yet.</p>`; return; }
-  const W=680,H=250,P={l:44,r:14,t:12,b:28},iw=W-P.l-P.r,ih=H-P.t-P.b;
-  const max=Math.max(2000,Math.ceil(Math.max(...s.map(d=>d.entries))/2000)*2000);
+  const s=series(), el=document.getElementById("lineChart");
+  if(!s.length){el.innerHTML=`<p class="cap">No data in range.</p>`;return;}
+  const W=680,H=250,P={l:44,r:14,t:12,b:30},iw=W-P.l-P.r,ih=H-P.t-P.b;
+  const max=niceMax(Math.max(1,...s.map(d=>d.entries))), step=max/5;
   const x=i=>P.l+(s.length<2?iw/2:(i/(s.length-1))*iw), y=v=>P.t+ih-(v/max)*ih;
-  let g="";
-  for(let t=0;t<=max;t+=Math.max(2000,max/5)){ g+=`<line class="gl" x1="${P.l}" y1="${y(t)}" x2="${W-P.r}" y2="${y(t)}"/><text class="axis" x="${P.l-8}" y="${y(t)+4}" text-anchor="end">${Math.round(t/1000)}k</text>`; }
-  s.forEach((d,i)=> g+=`<text class="axis" x="${x(i)}" y="${H-8}" text-anchor="middle">${d.label}</text>`);
-  const path=(key,c)=>{ let d=s.map((v,i)=>(i?"L":"M")+x(i)+" "+y(v[key])).join(" "); return `<path d="${d}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`; };
-  let dots="";
-  s.forEach((d,i)=>{ dots+=mk(x(i),y(d.entries),cssv('--blue'),"Entries",d.label,d.entries)+mk(x(i),y(d.joins),cssv('--green'),"Joins",d.label,d.joins); });
-  function mk(cx,cy,c,name,lab,v){ return `<circle cx="${cx}" cy="${cy}" r="8" fill="transparent" onmousemove="showTip('<b>${lab}</b><br>${name}: ${fmt(v)}',event)" onmouseleave="hideTip()"/><circle cx="${cx}" cy="${cy}" r="3.2" fill="${c}"/>`; }
+  let g=""; for(let t=0;t<=max+0.001;t+=step){ g+=`<line class="gl" x1="${P.l}" y1="${y(t)}" x2="${W-P.r}" y2="${y(t)}"/><text class="axis" x="${P.l-8}" y="${y(t)+4}" text-anchor="end">${t>=1000?Math.round(t/1000)+"k":Math.round(t)}</text>`; }
+  const every=Math.max(1,Math.ceil(s.length/10));
+  s.forEach((d,i)=>{ if(i%every===0||i===s.length-1) g+=`<text class="axis" x="${x(i)}" y="${H-8}" text-anchor="middle">${d.label}</text>`; });
+  const path=(key,c)=>{let d=s.map((v,i)=>(i?"L":"M")+x(i)+" "+y(v[key])).join(" ");return `<path d="${d}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;};
+  let dots=""; const de=s.length>40?every:1;
+  s.forEach((d,i)=>{ if(i%de===0||i===s.length-1) dots+=mk(x(i),y(d.entries),cssv('--blue'),"Entries",d.label,d.entries)+mk(x(i),y(d.joins),cssv('--green'),"Joins",d.label,d.joins); });
+  function mk(cx,cy,c,name,lab,v){return `<circle cx="${cx}" cy="${cy}" r="8" fill="transparent" onmousemove="showTip('<b>${lab}</b><br>${name}: ${fmt(v)}',event)" onmouseleave="hideTip()"/><circle cx="${cx}" cy="${cy}" r="3" fill="${c}"/>`;}
   el.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${g}<line class="baseline" x1="${P.l}" y1="${y(0)}" x2="${W-P.r}" y2="${y(0)}"/>${path('entries',cssv('--blue'))}${path('joins',cssv('--green'))}${dots}</svg>`;
 }
 
 function drawDonut(t){
-  const el=document.getElementById("donut");
-  const total=t.joins+t.lost;
-  if(total===0){ el.innerHTML=`<p class="cap">No outcomes in range yet.</p>`; return; }
+  const el=document.getElementById("donut"), total=t.joins+t.lost;
+  if(total===0){el.innerHTML=`<p class="cap">No outcomes in range.</p>`;return;}
   const S=210,r=78,cx=S/2,cy=110,cir=2*Math.PI*r;
   const segs=[{name:"Joined",v:t.joins,c:cssv('--green')},{name:"Lost",v:t.lost,c:cssv('--red')}];
-  let off=0,arcs="";
-  segs.forEach(s=>{ const len=(s.v/total)*cir; arcs+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.c}" stroke-width="22" stroke-dasharray="${len-3} ${cir-len+3}" stroke-dashoffset="${-off}" transform="rotate(-90 ${cx} ${cy})" onmousemove="showTip('<b>${s.name}</b><br>${fmt(s.v)} · ${pct(100*s.v/total)}',event)" onmouseleave="hideTip()"/>`; off+=len; });
+  let off=0,arcs=""; segs.forEach(s=>{const len=(s.v/total)*cir;arcs+=`<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${s.c}" stroke-width="22" stroke-dasharray="${len-3} ${cir-len+3}" stroke-dashoffset="${-off}" transform="rotate(-90 ${cx} ${cy})" onmousemove="showTip('<b>${s.name}</b><br>${fmt(s.v)} · ${pct(100*s.v/total)}',event)" onmouseleave="hideTip()"/>`;off+=len;});
   el.innerHTML=`<svg viewBox="0 0 ${S} 250">${arcs}
     <text x="${cx}" y="${cy-4}" text-anchor="middle" style="font-size:24px;font-weight:650;fill:var(--text)">${pct(t.conv)}</text>
     <text x="${cx}" y="${cy+16}" text-anchor="middle" class="axis">converted</text>
@@ -235,36 +216,47 @@ function drawDonut(t){
     <g transform="translate(58,234)"><circle cx="0" cy="-4" r="5" fill="${cssv('--red')}"/><text x="12" y="0" class="axis" style="fill:var(--text2)">Lost ${fmt(t.lost)}</text></g></svg>`;
 }
 
+function clubRows(){
+  return (DATA.by_location||[]).map(r=>({location:r.location||"—",client:r.client||"",entries:n(r.entries),joins:n(r.joins),lost:n(r.lost_joins),value:n(r.join_contract_value),leadval:n(r.lead_contract_value),conv:n(r.conversion_rate)})).sort((a,b)=>b.joins-a.joins);
+}
 function drawBars(){
-  const sel=document.getElementById("yearSel").value;
-  const map={};
-  (DATA.by_location||[]).forEach(r=>{
-    if(sel!=="all" && String(r.year)!==sel) return;
-    const k=r.location||"—"; if(!map[k]) map[k]={location:k,entries:0,joins:0,lost:0,value:0};
-    map[k].entries+=n(r.entries); map[k].joins+=n(r.joins); map[k].lost+=n(r.lost_joins); map[k].value+=n(r.join_contract_value);
-  });
-  let rows=Object.values(map).map(r=>({...r,conv:r.entries?100*r.joins/r.entries:0})).sort((a,b)=>b.joins-a.joins);
-  const barEl=document.getElementById("bars"), tb=document.querySelector("#locTable tbody");
-  if(rows.length===0){ barEl.innerHTML=`<p class="cap">No location data in range yet.</p>`; tb.innerHTML=""; return; }
-  const top=rows.slice(0,8);
-  const W=680,rowH=34,P={l:74,r:70,t:6},iw=W-P.l-P.r,max=Math.max(...top.map(r=>r.joins),1),H=P.t+top.length*rowH+6;
-  let s="";
-  top.forEach((r,i)=>{ const w=(r.joins/max)*iw,yy=P.t+i*rowH+8;
+  const rows=clubRows(), barEl=document.getElementById("bars"), tb=document.querySelector("#locTable tbody");
+  if(!rows.length){barEl.innerHTML=`<p class="cap">No club data in range.</p>`;tb.innerHTML="";return;}
+  const top=rows.slice(0,8), W=680,rowH=34,P={l:74,r:70,t:6},iw=W-P.l-P.r,max=Math.max(...top.map(r=>r.joins),1),H=P.t+top.length*rowH+6;
+  let s=""; top.forEach((r,i)=>{const w=(r.joins/max)*iw,yy=P.t+i*rowH+8;
     s+=`<text class="axis" x="${P.l-10}" y="${yy+13}" text-anchor="end" style="fill:var(--text2)">Club ${r.location}</text>
       <rect x="${P.l}" y="${yy}" width="${Math.max(w,2)}" height="18" rx="4" fill="${cssv('--blue')}" onmousemove="showTip('<b>Club ${r.location}</b><br>Joins: ${fmt(r.joins)} · Conv ${pct(r.conv)}',event)" onmouseleave="hideTip()"/>
-      <text class="axis" x="${P.l+Math.max(w,2)+8}" y="${yy+13}" style="fill:var(--text2)">${fmt(r.joins)} · ${pct(r.conv)}</text>`; });
+      <text class="axis" x="${P.l+Math.max(w,2)+8}" y="${yy+13}" style="fill:var(--text2)">${fmt(r.joins)} · ${pct(r.conv)}</text>`;});
   barEl.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${s}</svg>`;
   tb.innerHTML=rows.map(r=>`<tr><td>Club ${r.location}</td><td>${fmt(r.entries)}</td><td>${fmt(r.joins)}</td><td>${fmt(r.lost)}</td><td>${pct(r.conv)}</td><td>${money(r.value)}</td></tr>`).join("");
 }
 
-document.getElementById("refresh").onclick=load;
+function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+function exportCSV(){
+  if(!DATA)return;
+  const rows=clubRows(), head=["Club","Client","Entries","Joins","Lost","Conversion %","Join Value","Lead Value"], lines=[head.join(",")];
+  rows.forEach(r=>lines.push([r.location,r.client,r.entries,r.joins,r.lost,r.conv,r.value,r.leadval].map(csvCell).join(",")));
+  const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"}), a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download="woat-clubs_"+DATA.from+"_to_"+DATA.to+".csv"; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+
+const preset=document.getElementById("preset"), rangebox=document.getElementById("rangebox");
+function applyPreset(){
+  const p=preset.value;
+  if(p==="custom"){ rangebox.style.display="inline-flex"; if(RANGE){document.getElementById("fromDate").value=RANGE[0];document.getElementById("toDate").value=RANGE[1];} return; }
+  rangebox.style.display="none"; const [f,t]=presetRange(p); load(f,t);
+}
+preset.onchange=applyPreset;
+document.getElementById("applyBtn").onclick=()=>{ let f=document.getElementById("fromDate").value,t=document.getElementById("toDate").value; if(!f||!t)return; if(f>t){const x=f;f=t;t=x;} load(f,t); };
+document.getElementById("csvBtn").onclick=exportCSV;
+document.getElementById("refresh").onclick=()=>{ if(RANGE) load(RANGE[0],RANGE[1]); };
 document.getElementById("themeBtn").onclick=()=>{
   const cur=document.documentElement.getAttribute("data-theme");
   const next=cur==="dark"?"light":(cur==="light"?"dark":(matchMedia("(prefers-color-scheme: dark)").matches?"light":"dark"));
-  document.documentElement.setAttribute("data-theme",next);
-  if(DATA && DATA.by_year && DATA.by_year.length) render();
+  document.documentElement.setAttribute("data-theme",next); if(DATA) render();
 };
-load();
+(function(){ const [f,t]=presetRange("30"); load(f,t); })();
 </script>
 </body>
 </html>
