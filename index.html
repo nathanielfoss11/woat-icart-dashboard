@@ -82,7 +82,6 @@
         <button id="applyBtn" type="button">Apply</button>
       </span>
       <button id="csvBtn" type="button" title="Download the club summary table as CSV">&#8681; CSV</button>
-      <button id="piiBtn" type="button" style="display:none;border-color:var(--blue)" title="Export individual customer details (name, email, phone) for the selected range">&#8681; Member details</button>
       <button id="refresh" type="button">&#8635; Refresh</button>
       <button id="themeBtn" type="button">&#9680; Theme</button>
       <button id="authBtn" type="button" title="Sign in to export full customer details">&#128274; Member login</button>
@@ -284,7 +283,19 @@ function applyPreset(){
   rangebox.style.display="none"; const [f,t]=presetRange(p); load(f,t);
 }
 preset.onchange=applyPreset;
-document.getElementById("campaign").onchange=(e)=>{ PLANFILTER=e.target.value||null; if(RANGE) load(RANGE[0],RANGE[1]); };
+document.getElementById("campaign").onchange=async (e)=>{
+  PLANFILTER=e.target.value||null;
+  if(!PLANFILTER){ preset.value="30"; applyPreset(); return; }
+  try{
+    const r=await fetch(SUPA+"/rest/v1/rpc/report_campaign_span",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify({p_plan:PLANFILTER})});
+    const s=await r.json();
+    if(s && s.min && s.max){
+      preset.value="custom"; rangebox.style.display="inline-flex";
+      document.getElementById("fromDate").value=s.min; document.getElementById("toDate").value=s.max;
+      load(s.min, s.max);
+    } else if(RANGE){ load(RANGE[0],RANGE[1]); }
+  }catch(_){ if(RANGE) load(RANGE[0],RANGE[1]); }
+};
 document.getElementById("applyBtn").onclick=()=>{ let f=document.getElementById("fromDate").value,t=document.getElementById("toDate").value; if(!f||!t)return; if(f>t){const x=f;f=t;t=x;} load(f,t); };
 document.getElementById("csvBtn").onclick=exportCSV;
 document.getElementById("refresh").onclick=()=>{ if(RANGE) load(RANGE[0],RANGE[1]); };
@@ -297,14 +308,13 @@ document.getElementById("themeBtn").onclick=()=>{
 
 /* ---------- Member auth + individual (PII) export ---------- */
 const sb = window.supabase.createClient(SUPA, ANON, {auth:{persistSession:true, autoRefreshToken:true, detectSessionInUrl:true}});
-const authBtn=document.getElementById("authBtn"), piiBtn=document.getElementById("piiBtn"),
+const authBtn=document.getElementById("authBtn"),
       authPanel=document.getElementById("authPanel"), authMsg=document.getElementById("authMsg");
 
 async function currentSession(){ const {data}=await sb.auth.getSession(); return data.session; }
 async function refreshAuthUI(){
   const session=await currentSession(), authed=!!session;
   AUTHED=authed;
-  piiBtn.style.display = authed ? "" : "none";
   if(authed){ authBtn.textContent="⏻ "+(session.user.email||"Sign out"); authBtn.title="Signed in — click to sign out"; authPanel.style.display="none"; }
   else { authBtn.innerHTML="&#128274; Member login"; authBtn.title="Sign in to export full customer details"; }
   if(DATA) drawBars();   // show/hide per-club export links
@@ -348,19 +358,6 @@ function authError(e){
   authPanel.style.display="block";
   authMsg.textContent = e && e.code===403 ? "Your access isn’t authorized for member details." : ("Export failed ("+((e&&e.message)||e)+").");
 }
-async function exportPII(){
-  const session=await currentSession();
-  if(!session){ authPanel.style.display="block"; authMsg.textContent="Please sign in first."; return; }
-  if(!RANGE){ return; }
-  const [from,to]=RANGE, orig=piiBtn.textContent;
-  piiBtn.textContent="… loading";
-  try{
-    const rows=await fetchDetailRows(session, from, to);
-    downloadText("woat-member-details_"+from+"_to_"+to+".csv", detailToCSV(rows));
-  }catch(e){ authError(e); }
-  piiBtn.textContent=orig;
-}
-piiBtn.onclick=exportPII;
 async function exportClubPII(loc, ev){
   if(ev && ev.preventDefault) ev.preventDefault();
   const session=await currentSession();
