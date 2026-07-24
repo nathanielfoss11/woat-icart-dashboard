@@ -129,7 +129,7 @@
     <p class="cap">Entries, joins and conversion by club for the selected range &mdash; &#8681; CSV exports the whole table; sign in to export a single club&rsquo;s member details.</p>
     <div id="bars"></div>
     <table id="locTable">
-      <thead><tr><th>Club</th><th>Entries</th><th>Joins</th><th>Lost</th><th>Conv.</th><th>Join value</th><th class="expcol"></th></tr></thead>
+      <thead><tr><th data-sort="club" data-label="Club">Club</th><th data-sort="entries" data-label="Entries">Entries</th><th data-sort="joins" data-label="Joins">Joins</th><th data-sort="lost" data-label="Lost">Lost</th><th data-sort="conv" data-label="Conv.">Conv.</th><th data-sort="value" data-label="Join value">Join value</th><th class="expcol"></th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
@@ -144,6 +144,9 @@
 th.expcol,td.expcol{width:34px;text-align:center;padding-right:2px}
 .explink{color:var(--blue);text-decoration:none;font-size:15px;display:inline-block;padding:2px 6px;border-radius:6px}
 .explink:hover{background:color-mix(in srgb,var(--blue) 16%,transparent)}
+th[data-sort]{cursor:pointer;user-select:none;white-space:nowrap}
+th[data-sort]:hover{color:var(--text2)}
+th[data-sort] .arw{font-size:9px;margin-left:3px;color:var(--blue)}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -252,24 +255,32 @@ function drawDonut(t){
 }
 
 function clubRows(){
-  return (DATA.by_location||[]).map(r=>({location:r.location||"—",client:r.client||"",entries:n(r.entries),joins:n(r.joins),lost:n(r.lost_joins),value:n(r.join_contract_value),leadval:n(r.lead_contract_value),conv:n(r.conversion_rate)})).sort((a,b)=>b.joins-a.joins);
+  return (DATA.by_location||[]).map(r=>({location:r.location||"—",client:r.client||"",entries:n(r.entries),joins:n(r.joins),lost:n(r.lost_joins),value:n(r.join_contract_value),leadval:n(r.lead_contract_value),conv:n(r.conversion_rate)}));
+}
+let SORT={key:"joins", dir:"desc"};
+function sortClubRows(rows){
+  const {key,dir}=SORT, mul=dir==="asc"?1:-1, out=rows.slice();
+  if(key==="club"){ out.sort((a,b)=> mul*String(a.location).localeCompare(String(b.location))); }
+  else { out.sort((a,b)=> mul*((a[key]||0)-(b[key]||0))); }
+  return out;
 }
 function drawBars(){
   const rows=clubRows(), barEl=document.getElementById("bars"), tb=document.querySelector("#locTable tbody");
   if(!rows.length){barEl.innerHTML=`<p class="cap">No club data in range.</p>`;tb.innerHTML="";return;}
-  const top=rows.slice(0,8), W=680,rowH=34,P={l:74,r:70,t:6},iw=W-P.l-P.r,max=Math.max(...top.map(r=>r.joins),1),H=P.t+top.length*rowH+6;
+  const top=rows.slice().sort((a,b)=>b.joins-a.joins).slice(0,8), W=680,rowH=34,P={l:74,r:70,t:6},iw=W-P.l-P.r,max=Math.max(...top.map(r=>r.joins),1),H=P.t+top.length*rowH+6;
   let s=""; top.forEach((r,i)=>{const w=(r.joins/max)*iw,yy=P.t+i*rowH+8;
     s+=`<text class="axis" x="${P.l-10}" y="${yy+13}" text-anchor="end" style="fill:var(--text2)">Club ${r.location}</text>
       <rect x="${P.l}" y="${yy}" width="${Math.max(w,2)}" height="18" rx="4" fill="${cssv('--blue')}" onmousemove="showTip('<b>Club ${r.location}</b><br>Joins: ${fmt(r.joins)} · Conv ${pct(r.conv)}',event)" onmouseleave="hideTip()"/>
       <text class="axis" x="${P.l+Math.max(w,2)+8}" y="${yy+13}" style="fill:var(--text2)">${fmt(r.joins)} · ${pct(r.conv)}</text>`;});
   barEl.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${s}</svg>`;
-  tb.innerHTML=rows.map(r=>{const loc=String(r.location).replace(/[^\w.-]/g,"");const link=AUTHED?`<a href="#" class="explink" title="Download Club ${loc} member details" onclick="exportClubPII('${loc}',event)">&#8681;</a>`:"";return `<tr><td>Club ${r.location}</td><td>${fmt(r.entries)}</td><td>${fmt(r.joins)}</td><td>${fmt(r.lost)}</td><td>${pct(r.conv)}</td><td>${money(r.value)}</td><td class="expcol">${link}</td></tr>`;}).join("");
+  const trows=sortClubRows(rows);
+  tb.innerHTML=trows.map(r=>{const loc=String(r.location).replace(/[^\w.-]/g,"");const link=AUTHED?`<a href="#" class="explink" title="Download Club ${loc} member details" onclick="exportClubPII('${loc}',event)">&#8681;</a>`:"";return `<tr><td>Club ${r.location}</td><td>${fmt(r.entries)}</td><td>${fmt(r.joins)}</td><td>${fmt(r.lost)}</td><td>${pct(r.conv)}</td><td>${money(r.value)}</td><td class="expcol">${link}</td></tr>`;}).join("");
 }
 
 function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function exportCSV(){
   if(!DATA)return;
-  const rows=clubRows(), head=["Club","Client","Entries","Joins","Lost","Conversion %","Join Value","Lead Value"], lines=[head.join(",")];
+  const rows=sortClubRows(clubRows()), head=["Club","Client","Entries","Joins","Lost","Conversion %","Join Value","Lead Value"], lines=[head.join(",")];
   rows.forEach(r=>lines.push([r.location,r.client,r.entries,r.joins,r.lost,r.conv,r.value,r.leadval].map(csvCell).join(",")));
   const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"}), a=document.createElement("a");
   a.href=URL.createObjectURL(blob); a.download="woat-clubs_"+DATA.from+"_to_"+DATA.to+".csv"; a.click();
@@ -298,6 +309,22 @@ document.getElementById("campaign").onchange=async (e)=>{
 };
 document.getElementById("applyBtn").onclick=()=>{ let f=document.getElementById("fromDate").value,t=document.getElementById("toDate").value; if(!f||!t)return; if(f>t){const x=f;f=t;t=x;} load(f,t); };
 document.getElementById("csvBtn").onclick=exportCSV;
+function updateSortIndicators(){
+  document.querySelectorAll("#locTable thead th[data-sort]").forEach(th=>{
+    const lbl=th.getAttribute("data-label"), active=th.getAttribute("data-sort")===SORT.key;
+    th.innerHTML = lbl + (active ? ' <span class="arw">'+(SORT.dir==="asc"?"▲":"▼")+"</span>" : "");
+  });
+}
+document.querySelectorAll("#locTable thead th[data-sort]").forEach(th=>{
+  th.onclick=()=>{
+    const k=th.getAttribute("data-sort");
+    if(SORT.key===k){ SORT.dir = SORT.dir==="asc"?"desc":"asc"; }
+    else { SORT.key=k; SORT.dir = (k==="club")?"asc":"desc"; }
+    if(DATA) drawBars();
+    updateSortIndicators();
+  };
+});
+updateSortIndicators();
 document.getElementById("refresh").onclick=()=>{ if(RANGE) load(RANGE[0],RANGE[1]); };
 document.getElementById("themeBtn").onclick=()=>{
   const cur=document.documentElement.getAttribute("data-theme");
