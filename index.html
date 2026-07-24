@@ -10,19 +10,20 @@
     color-scheme: light dark;
     --page:#f9f9f7; --surface:#fcfcfb; --text:#0b0b0b; --text2:#52514e; --muted:#898781;
     --grid:#e1e0d9; --baseline:#c3c2b7; --border:rgba(11,11,11,0.10);
-    --blue:#2a78d6; --green:#008300; --red:#e34948; --good:#006300;
+    --blue:#0A419C; --green:#008300; --red:#e34948; --good:#006300; --accent:#A4D6DE;
   }
   @media (prefers-color-scheme: dark){ :root:where(:not([data-theme="light"])){
     --page:#0d0d0d; --surface:#1a1a19; --text:#fff; --text2:#c3c2b7; --muted:#898781;
     --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,0.10);
-    --blue:#3987e5; --green:#008300; --red:#e66767; --good:#0ca30c; } }
+    --blue:#4F7AD8; --green:#008300; --accent:#A4D6DE; --red:#e66767; --good:#0ca30c; } }
   :root[data-theme="dark"]{
     --page:#0d0d0d; --surface:#1a1a19; --text:#fff; --text2:#c3c2b7; --muted:#898781;
     --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,0.10);
-    --blue:#3987e5; --green:#008300; --red:#e66767; --good:#0ca30c; }
+    --blue:#4F7AD8; --green:#008300; --accent:#A4D6DE; --red:#e66767; --good:#0ca30c; }
   *{box-sizing:border-box}
   body{margin:0;background:var(--page);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
   .wrap{max-width:1160px;margin:0 auto;padding:28px 24px 60px}
+  body::before{content:"";position:fixed;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--blue),var(--accent));z-index:40}
   header.top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:6px}
   h1{font-size:22px;margin:0;letter-spacing:-0.01em}
   .sub{color:var(--text2);font-size:13px;margin-top:4px}
@@ -31,7 +32,7 @@
   .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin:22px 0}
   @media (max-width:920px){.kpis{grid-template-columns:repeat(3,1fr)}}
   @media (max-width:560px){.kpis{grid-template-columns:repeat(2,1fr)}}
-  .tile{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px 15px}
+  .tile{background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:12px;padding:14px 15px}
   .tile .label{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
   .tile .val{font-size:26px;font-weight:650;margin-top:8px;letter-spacing:-0.02em}
   .grid2{display:grid;grid-template-columns:1.55fr 1fr;gap:18px;margin-bottom:18px}
@@ -243,10 +244,11 @@ function drawLine(){
   const every=Math.max(1,Math.ceil(s.length/10));
   s.forEach((d,i)=>{ if(i%every===0||i===s.length-1) g+=`<text class="axis" x="${x(i)}" y="${H-8}" text-anchor="middle">${d.label}</text>`; });
   const path=(key,c)=>{let d=s.map((v,i)=>(i?"L":"M")+x(i)+" "+y(v[key])).join(" ");return `<path d="${d}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;};
+  const area=(key,c)=>{let d="M"+x(0)+" "+y(0);s.forEach((v,i)=>d+=" L"+x(i)+" "+y(v[key]));d+=" L"+x(s.length-1)+" "+y(0)+" Z";return `<path d="${d}" fill="${c}" fill-opacity="0.30" stroke="none"/>`;};
   let dots=""; const de=s.length>40?every:1;
   s.forEach((d,i)=>{ if(i%de===0||i===s.length-1) dots+=mk(x(i),y(d.entries),cssv('--blue'),"Entries",d.label,d.entries)+mk(x(i),y(d.joins),cssv('--green'),"Joins",d.label,d.joins); });
   function mk(cx,cy,c,name,lab,v){return `<circle cx="${cx}" cy="${cy}" r="8" fill="transparent" onmousemove="showTip('<b>${lab}</b><br>${name}: ${fmt(v)}',event)" onmouseleave="hideTip()"/><circle cx="${cx}" cy="${cy}" r="3" fill="${c}"/>`;}
-  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${g}<line class="baseline" x1="${P.l}" y1="${y(0)}" x2="${W-P.r}" y2="${y(0)}"/>${path('entries',cssv('--blue'))}${path('joins',cssv('--green'))}${dots}</svg>`;
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${g}${area('entries',cssv('--accent'))}<line class="baseline" x1="${P.l}" y1="${y(0)}" x2="${W-P.r}" y2="${y(0)}"/>${path('entries',cssv('--blue'))}${path('joins',cssv('--green'))}${dots}</svg>`;
 }
 
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
