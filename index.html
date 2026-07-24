@@ -110,9 +110,12 @@
       <div id="lineChart"></div>
     </div>
     <div class="card">
-      <h2>Outcome split</h2>
-      <p class="cap">Joined vs. lost for the selected range.</p>
-      <div id="donut"></div>
+      <h2>Top plans</h2>
+      <p class="cap">Most-purchased plans in the selected range, with joins and lost joins.</p>
+      <table id="planTable">
+        <thead><tr><th>Plan</th><th>Joins</th><th>Lost</th></tr></thead>
+        <tbody></tbody>
+      </table>
     </div>
   </div>
 
@@ -173,10 +176,15 @@ async function load(from,to){
   DETAIL_CACHE=null; DETAIL_KEY=null;
   status.style.display="block"; status.textContent="Loading "+from+" → "+to+" …";
   try{
-    const r=await fetch(SUPA+"/rest/v1/rpc/report_range",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify({p_from:from,p_to:to})});
+    const hdr={apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"}, body=JSON.stringify({p_from:from,p_to:to});
+    const [r, rp]=await Promise.all([
+      fetch(SUPA+"/rest/v1/rpc/report_range",{method:"POST",headers:hdr,body}),
+      fetch(SUPA+"/rest/v1/rpc/report_plans",{method:"POST",headers:hdr,body})
+    ]);
     if(!r.ok) throw new Error("HTTP "+r.status);
     DATA=await r.json();
     if(DATA.error) throw new Error(DATA.error);
+    DATA.plans = rp.ok ? await rp.json() : [];
     status.style.display="none"; render();
   }catch(e){ status.innerHTML="Couldn't load the report ("+e.message+").<br>Click &#8635; Refresh to try again."; }
 }
@@ -194,7 +202,7 @@ function render(){
   document.getElementById("sub").textContent="iCart online joins · "+rangeLabel();
   const kpis=[{label:"Entries",val:fmt(s.entries)},{label:"Joins",val:fmt(s.joins)},{label:"Lost Joins",val:fmt(s.lost_joins)},{label:"Conversion",val:conv.toFixed(1)+"%"},{label:"Join Value",val:money(s.join_contract_value)},{label:"Lost Value",val:money(s.lead_contract_value)}];
   document.getElementById("kpis").innerHTML=kpis.map(k=>`<div class="tile"><div class="label">${k.label}</div><div class="val">${k.val}</div></div>`).join("");
-  drawLine(); drawDonut({joins:n(s.joins),lost:n(s.lost_joins),conv:conv}); drawBars();
+  drawLine(); renderPlans(); drawBars();
   document.getElementById("foot").textContent="Live from the iCart database · unique-person counts · range "+DATA.from+" to "+DATA.to+".";
 }
 
@@ -223,6 +231,12 @@ function drawLine(){
   el.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${g}<line class="baseline" x1="${P.l}" y1="${y(0)}" x2="${W-P.r}" y2="${y(0)}"/>${path('entries',cssv('--blue'))}${path('joins',cssv('--green'))}${dots}</svg>`;
 }
 
+const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function renderPlans(){
+  const tb=document.querySelector("#planTable tbody"), rows=DATA.plans||[];
+  if(!rows.length){ tb.innerHTML=`<tr><td colspan="3" style="color:var(--muted)">No plan data in range.</td></tr>`; return; }
+  tb.innerHTML=rows.map(p=>`<tr><td>${esc(p.plan)}</td><td>${fmt(p.joins)}</td><td>${fmt(p.lost)}</td></tr>`).join("");
+}
 function drawDonut(t){
   const el=document.getElementById("donut"), total=t.joins+t.lost;
   if(total===0){el.innerHTML=`<p class="cap">No outcomes in range.</p>`;return;}
