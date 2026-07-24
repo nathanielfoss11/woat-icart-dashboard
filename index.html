@@ -62,6 +62,11 @@
       <div class="sub" id="sub">iCart online joins &middot; loading&hellip;</div>
     </div>
     <div class="controls">
+      <select id="campaign" aria-label="Campaign filter" title="Filter the whole dashboard by campaign plan">
+        <option value="">All plans</option>
+        <option value="BANANA">BANANA campaign</option>
+        <option value="STRONGER">STRONGER campaign</option>
+      </select>
       <select id="preset" aria-label="Date range">
         <option value="30">Last 30 days</option>
         <option value="90">Last 90 days</option>
@@ -169,22 +174,18 @@ function presetRange(p){
   return null;
 }
 
-let DATA=null, RANGE=null, AUTHED=false, DETAIL_CACHE=null, DETAIL_KEY=null;
+let DATA=null, RANGE=null, AUTHED=false, DETAIL_CACHE=null, DETAIL_KEY=null, PLANFILTER=null;
 
 async function load(from,to){
   const status=document.getElementById("status"); RANGE=[from,to];
   DETAIL_CACHE=null; DETAIL_KEY=null;
   status.style.display="block"; status.textContent="Loading "+from+" → "+to+" …";
   try{
-    const hdr={apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"}, body=JSON.stringify({p_from:from,p_to:to});
-    const [r, rp]=await Promise.all([
-      fetch(SUPA+"/rest/v1/rpc/report_range",{method:"POST",headers:hdr,body}),
-      fetch(SUPA+"/rest/v1/rpc/report_plans",{method:"POST",headers:hdr,body})
-    ]);
+    const hdr={apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"};
+    const r=await fetch(SUPA+"/rest/v1/rpc/report_filtered",{method:"POST",headers:hdr,body:JSON.stringify({p_from:from,p_to:to,p_plan:PLANFILTER})});
     if(!r.ok) throw new Error("HTTP "+r.status);
     DATA=await r.json();
     if(DATA.error) throw new Error(DATA.error);
-    DATA.plans = rp.ok ? await rp.json() : [];
     status.style.display="none"; render();
   }catch(e){ status.innerHTML="Couldn't load the report ("+e.message+").<br>Click &#8635; Refresh to try again."; }
 }
@@ -199,7 +200,7 @@ function render(){
   document.getElementById("charts").style.display="grid";
   document.getElementById("locCard").style.display="block";
   const s=DATA.summary||{}, conv=n(s.conversion_rate);
-  document.getElementById("sub").textContent="iCart online joins · "+rangeLabel();
+  document.getElementById("sub").textContent="iCart online joins · "+rangeLabel()+(PLANFILTER?(" · "+PLANFILTER+" campaign"):"");
   const kpis=[{label:"Entries",val:fmt(s.entries)},{label:"Joins",val:fmt(s.joins)},{label:"Lost Joins",val:fmt(s.lost_joins)},{label:"Conversion",val:conv.toFixed(1)+"%"},{label:"Join Value",val:money(s.join_contract_value)},{label:"Lost Value",val:money(s.lead_contract_value)}];
   document.getElementById("kpis").innerHTML=kpis.map(k=>`<div class="tile"><div class="label">${k.label}</div><div class="val">${k.val}</div></div>`).join("");
   drawLine(); renderPlans(); drawBars();
@@ -282,6 +283,7 @@ function applyPreset(){
   rangebox.style.display="none"; const [f,t]=presetRange(p); load(f,t);
 }
 preset.onchange=applyPreset;
+document.getElementById("campaign").onchange=(e)=>{ PLANFILTER=e.target.value||null; if(RANGE) load(RANGE[0],RANGE[1]); };
 document.getElementById("applyBtn").onclick=()=>{ let f=document.getElementById("fromDate").value,t=document.getElementById("toDate").value; if(!f||!t)return; if(f>t){const x=f;f=t;t=x;} load(f,t); };
 document.getElementById("csvBtn").onclick=exportCSV;
 document.getElementById("refresh").onclick=()=>{ if(RANGE) load(RANGE[0],RANGE[1]); };
@@ -320,11 +322,11 @@ document.getElementById("sendLink").onclick=async()=>{
 };
 const DETAIL_HEAD=["Checkout ID","Status","Club","Location","First Name","Last Name","Email","Phone","Plan","Recurring Price","Contract Value","Platform","Lead At","Joined At","Lost At"];
 async function fetchDetailRows(session, from, to){
-  const key=from+"|"+to;
+  const key=from+"|"+to+"|"+(PLANFILTER||"");
   if(DETAIL_CACHE && DETAIL_KEY===key) return DETAIL_CACHE;
   const r=await fetch(SUPA+"/rest/v1/rpc/report_detail",{method:"POST",
     headers:{apikey:ANON, Authorization:"Bearer "+session.access_token, "Content-Type":"application/json"},
-    body:JSON.stringify({p_from:from,p_to:to})});
+    body:JSON.stringify({p_from:from,p_to:to,p_plan:PLANFILTER})});
   if(r.status===401||r.status===403){ const e=new Error("unauthorized"); e.code=403; throw e; }
   if(!r.ok) throw new Error("HTTP "+r.status);
   const rows=await r.json();
