@@ -85,19 +85,47 @@ iCart checkout channels (credit-card, ACH, kiosk).
   the `report_range(p_from,p_to)` RPC (range-scoped unique-person dedup, `SECURITY DEFINER`,
   granted to anon/authenticated).
 - **Public CSV** (`⇩ CSV`): club-summary table for the selected range — no PII, always available.
+  Columns lead with **Location** (mapped club name, see "Club location names" below) then **Club #**
+  (the raw ABC location number), followed by entries/joins/lost/conversion/join value/lead value.
 - **Member-details CSV** (`⇩ Member details`): full customer info per person
-  (checkout_id, status, club, location, first/last name, email, phone, plan, recurring_price,
-  contract_value, platform, lead/joined/lost timestamps). Only shows when signed in.
+  (checkout_id, status, **Location** name, **Club #**, client, first/last name, email, phone, plan,
+  recurring_price, contract_value, platform, lead/joined/lost timestamps). Only shows when signed in.
 - **Per-club CSV** (`⇩` on each Clubs-table row): same member-detail columns, filtered to that
-  club's `location`. The link renders only when signed in. Note: a club can appear as several
-  summary rows when its records carry different client-name spellings under one location number;
-  each row's `⇩` exports the whole club by location, so the file is complete regardless.
+  club's number. The link renders only when signed in. The filter matches on the **normalized club
+  number** (digits only, leading zeros stripped) so it captures every record for the club regardless
+  of client-name spelling.
 - Both member exports are **unique-person deduped** (same rule as the summary, applied within the
   range), so a club's export count matches its summary total. `report_detail` returns the rows as a
   single **`jsonb`** array (not a row set) — this deliberately bypasses PostgREST's 1000-row cap that
   was silently truncating the full export.
 
-## Member auth / PII gating
+## Club location names (`club_names`) + one-row-per-club merge
+- **Problem the data has**: rows only carry the ABC **club number** (`location`, e.g. `70056`) and a
+  generic chain `client` name ("WORKOUT ANYTIME" / "Workout Anytime (ACH)" / null for history). There
+  is **no per-club location/city name anywhere** in `checkouts` or `raw_lead` (raw `clubName` is also
+  just the chain name). So the dashboard originally showed "Club 70056".
+- **Name mapping**: table **`club_names(club_id bigint PK, location_name text)`**, RLS enabled (read
+  only via the RPC below, not anon-direct). Loaded from Nate's spreadsheet
+  *"sneezeit clubs as of 7.24.2026.xlsx"* — **195 clubs** (e.g. `5663→Aberdeen`, `70057→Yadkinville`).
+  Spreadsheet club numbers are zero-padded 5-digit (`05663`); DB `location` is unpadded (`5663`) — the
+  join/lookup **normalizes** to digits-only, leading zeros stripped, so `5663`/`05663` match.
+  Update names by inserting/updating rows in this table — **no dashboard redeploy needed**.
+- **Lookup RPC**: `club_names_map()` → `jsonb` object `{ "<club#>": "<name>", ... }`, `SECURITY DEFINER`,
+  granted to anon+authenticated. The dashboard fetches it once on load into a `NAMES` map and renders
+  `clubLabel(loc)` = `NAMES[normLoc(loc)]` else fallback **"Club <number>"**. Names show in the bar
+  chart, clubs table, tooltips, and both CSV exports; Club-column sort is alphabetical by name.
+- **Coverage**: 193 of 216 club numbers ever seen are mapped; the 195 mapped includes 2 with no rows
+  yet. Unmapped-but-active (fall back to "Club N"): **5653, 70003, 70014, 5684** (all last active
+  before July 2026, so absent from the default 30-day view). Add their names to `club_names` when known.
+- **One-row-per-club merge (frontend)**: the report groups `by_location` by **(client, location)**, so a
+  club with both historical (null client) and live rows returned as **multiple summary rows** — visible
+  as duplicate lines (same number, or after naming, same name twice). `clubRows()` in `index.html` now
+  **merges all rows sharing the same normalized club number** into one: sums entries/joins/lost/join &
+  lead value, recomputes `conversion = joins/entries*100` (matches the KPI + per-club definition). This
+  is purely in the frontend — the report RPCs and their unique-person dedup are **untouched**. Effect:
+  e.g. the 30-day view collapsed **345 raw rows → 195 clubs**. Top-line KPIs come from `summary` (always
+  computed separately) and were already correct. Merge is safe because dedup is per-person globally, so a
+  person sits in exactly one (client,location) row — summing across spellings can't double-count.
 - `report_detail(p_from,p_to)` is `SECURITY DEFINER`, returns a single `jsonb` array of deduped
   person-rows; `EXECUTE` **revoked from public + anon**, **granted to `authenticated`** only.
   Verified: anon key → `401 permission denied`; a logged-in user's JWT → full deduped set (no
@@ -140,7 +168,10 @@ iCart checkout channels (credit-card, ACH, kiosk).
 - **DONE**: checkout_id + mirror live on all 3 sites; Supabase DB + lost-join sweep + reporting views;
   `report` function; hosted dashboard at reports.woat.org (HTTPS, favicon); 2025 + 2026 history loaded;
   unique-person reporting; platform tagging live; **date-range picker + range RPC**; **public club CSV**;
-  **invite-only member login + gated full-PII (`report_detail`) CSV export**.
+  **invite-only member login + gated full-PII (`report_detail`) CSV export**; **campaign filters
+  (BANANA/STRONG/STRONGER) driving the whole dashboard**; **top-plans table**; **sortable clubs table
+  (default Entries desc)**; **club location names (`club_names` + `club_names_map()`)** replacing club
+  numbers, with **one-row-per-club merge** of duplicate client-name-spelling rows.
 - **PARALLEL RUN**: new system runs alongside the old Zaps — nothing turned off, full rollback available.
 - **REMAINING**:
   1. Watch/compare the parallel run for a few days.
