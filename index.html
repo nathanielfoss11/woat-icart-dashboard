@@ -111,9 +111,9 @@
     </div>
     <div class="card">
       <h2>Top plans</h2>
-      <p class="cap">Most-purchased plans in the selected range, with joins and lost joins.</p>
+      <p class="cap">Plans ranked by total entries in the selected range, with joins and lost joins.</p>
       <table id="planTable">
-        <thead><tr><th>Plan</th><th>Joins</th><th>Lost</th></tr></thead>
+        <thead><tr><th>Plan</th><th>Entries</th><th>Joins</th><th>Lost</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -234,8 +234,8 @@ function drawLine(){
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 function renderPlans(){
   const tb=document.querySelector("#planTable tbody"), rows=DATA.plans||[];
-  if(!rows.length){ tb.innerHTML=`<tr><td colspan="3" style="color:var(--muted)">No plan data in range.</td></tr>`; return; }
-  tb.innerHTML=rows.map(p=>`<tr><td>${esc(p.plan)}</td><td>${fmt(p.joins)}</td><td>${fmt(p.lost)}</td></tr>`).join("");
+  if(!rows.length){ tb.innerHTML=`<tr><td colspan="4" style="color:var(--muted)">No plan data in range.</td></tr>`; return; }
+  tb.innerHTML=rows.map(p=>`<tr><td>${esc(p.plan)}</td><td>${fmt(p.entries)}</td><td>${fmt(p.joins)}</td><td>${fmt(p.lost)}</td></tr>`).join("");
 }
 function drawDonut(t){
   const el=document.getElementById("donut"), total=t.joins+t.lost;
