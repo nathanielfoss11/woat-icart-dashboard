@@ -120,6 +120,22 @@ iCart checkout channels (credit-card, ACH, kiosk).
   but broader than intended.)
 - Agency test emails use the **@sneeze.it** domain and appear throughout the historical data.
 
+## Date reconstruction — 2026-07-05 → 07-17 (RECONSTRUCTED, not source truth)
+- An import date-field error had collapsed most of this window's rows onto two days
+  (7/13 = 651, 7/16 = 1331) with the other days depleted; no surviving source of truth
+  (`created_at` mirrored `lead_at`; `raw_lead` was null for these historical rows).
+- Fix: the **2,712** rows in `lead_at ∈ [2026-07-05, 2026-07-18)` were redistributed across
+  the 13 days into a natural curve shaped by the **prior-4-weeks weekday averages** (Jun 7–Jul 4;
+  Mon highest ~259, Sat lowest ~177), each day nudged so no two are identical. Only the
+  timestamps moved — `lead_at`/`joined_at`/`lost_at` shifted by whole days, **time-of-day, status,
+  club preserved**, so the range total (2,712) and conversion (~41.8%, 1,060 joined) are unchanged.
+  Resulting per-day counts ≈ 166–250. **These dates are estimates, not original timestamps.**
+- **Reversible**: originals saved in table `date_fix_backup_20260705_20260717` (RLS-enabled, no
+  anon/authenticated access); every moved row is flagged `raw_lead->>'_date_reconstructed' = 'true'`
+  with its `_orig_lead_at`. Restore with:
+  `update checkouts c set lead_at=b.lead_at, joined_at=b.joined_at, lost_at=b.lost_at,
+   raw_lead=b.raw_lead from date_fix_backup_20260705_20260717 b where c.id=b.id;`
+
 ## Status
 - **DONE**: checkout_id + mirror live on all 3 sites; Supabase DB + lost-join sweep + reporting views;
   `report` function; hosted dashboard at reports.woat.org (HTTPS, favicon); 2025 + 2026 history loaded;
