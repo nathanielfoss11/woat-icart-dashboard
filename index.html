@@ -178,6 +178,19 @@ function presetRange(p){
 }
 
 let DATA=null, RANGE=null, AUTHED=false, DETAIL_CACHE=null, DETAIL_KEY=null, PLANFILTER=null;
+let NAMES={};
+const escAttr=s=>esc(s).replace(/'/g,"&#39;");
+function clubLabel(loc){
+  const k=String(loc==null?"":loc).replace(/\D/g,"").replace(/^0+/,"");
+  return (k && NAMES[k]) ? NAMES[k] : ("Club "+loc);
+}
+async function loadNames(){
+  try{
+    const r=await fetch(SUPA+"/rest/v1/rpc/club_names_map",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:"{}"});
+    if(r.ok){ const j=await r.json(); if(j && typeof j==="object"){ NAMES=j; if(DATA) drawBars(); } }
+  }catch(_){}
+}
+loadNames();
 
 async function load(from,to){
   const status=document.getElementById("status"); RANGE=[from,to];
@@ -260,28 +273,28 @@ function clubRows(){
 let SORT={key:"entries", dir:"desc"};
 function sortClubRows(rows){
   const {key,dir}=SORT, mul=dir==="asc"?1:-1, out=rows.slice();
-  if(key==="club"){ out.sort((a,b)=> mul*String(a.location).localeCompare(String(b.location))); }
+  if(key==="club"){ out.sort((a,b)=> mul*clubLabel(a.location).localeCompare(clubLabel(b.location))); }
   else { out.sort((a,b)=> mul*((a[key]||0)-(b[key]||0))); }
   return out;
 }
 function drawBars(){
   const rows=clubRows(), barEl=document.getElementById("bars"), tb=document.querySelector("#locTable tbody");
   if(!rows.length){barEl.innerHTML=`<p class="cap">No club data in range.</p>`;tb.innerHTML="";return;}
-  const top=rows.slice().sort((a,b)=>b.joins-a.joins).slice(0,8), W=680,rowH=34,P={l:74,r:70,t:6},iw=W-P.l-P.r,max=Math.max(...top.map(r=>r.joins),1),H=P.t+top.length*rowH+6;
-  let s=""; top.forEach((r,i)=>{const w=(r.joins/max)*iw,yy=P.t+i*rowH+8;
-    s+=`<text class="axis" x="${P.l-10}" y="${yy+13}" text-anchor="end" style="fill:var(--text2)">Club ${r.location}</text>
-      <rect x="${P.l}" y="${yy}" width="${Math.max(w,2)}" height="18" rx="4" fill="${cssv('--blue')}" onmousemove="showTip('<b>Club ${r.location}</b><br>Joins: ${fmt(r.joins)} · Conv ${pct(r.conv)}',event)" onmouseleave="hideTip()"/>
+  const top=rows.slice().sort((a,b)=>b.joins-a.joins).slice(0,8), W=680,rowH=34,P={l:140,r:70,t:6},iw=W-P.l-P.r,max=Math.max(...top.map(r=>r.joins),1),H=P.t+top.length*rowH+6;
+  let s=""; top.forEach((r,i)=>{const w=(r.joins/max)*iw,yy=P.t+i*rowH+8;const nm=clubLabel(r.location);
+    s+=`<text class="axis" x="${P.l-10}" y="${yy+13}" text-anchor="end" style="fill:var(--text2)">${esc(nm)}</text>
+      <rect x="${P.l}" y="${yy}" width="${Math.max(w,2)}" height="18" rx="4" fill="${cssv('--blue')}" onmousemove="showTip('<b>${escAttr(nm)}</b><br>Joins: ${fmt(r.joins)} · Conv ${pct(r.conv)}',event)" onmouseleave="hideTip()"/>
       <text class="axis" x="${P.l+Math.max(w,2)+8}" y="${yy+13}" style="fill:var(--text2)">${fmt(r.joins)} · ${pct(r.conv)}</text>`;});
   barEl.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${s}</svg>`;
   const trows=sortClubRows(rows);
-  tb.innerHTML=trows.map(r=>{const loc=String(r.location).replace(/[^\w.-]/g,"");const link=AUTHED?`<a href="#" class="explink" title="Download Club ${loc} member details" onclick="exportClubPII('${loc}',event)">&#8681;</a>`:"";return `<tr><td>Club ${r.location}</td><td>${fmt(r.entries)}</td><td>${fmt(r.joins)}</td><td>${fmt(r.lost)}</td><td>${pct(r.conv)}</td><td>${money(r.value)}</td><td class="expcol">${link}</td></tr>`;}).join("");
+  tb.innerHTML=trows.map(r=>{const loc=String(r.location).replace(/[^\w.-]/g,"");const nm=clubLabel(r.location);const link=AUTHED?`<a href="#" class="explink" title="Download ${escAttr(nm)} member details" onclick="exportClubPII('${loc}',event)">&#8681;</a>`:"";return `<tr><td>${esc(nm)}</td><td>${fmt(r.entries)}</td><td>${fmt(r.joins)}</td><td>${fmt(r.lost)}</td><td>${pct(r.conv)}</td><td>${money(r.value)}</td><td class="expcol">${link}</td></tr>`;}).join("");
 }
 
 function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
 function exportCSV(){
   if(!DATA)return;
-  const rows=sortClubRows(clubRows()), head=["Club","Client","Entries","Joins","Lost","Conversion %","Join Value","Lead Value"], lines=[head.join(",")];
-  rows.forEach(r=>lines.push([r.location,r.client,r.entries,r.joins,r.lost,r.conv,r.value,r.leadval].map(csvCell).join(",")));
+  const rows=sortClubRows(clubRows()), head=["Location","Club #","Entries","Joins","Lost","Conversion %","Join Value","Lead Value"], lines=[head.join(",")];
+  rows.forEach(r=>lines.push([clubLabel(r.location),r.location,r.entries,r.joins,r.lost,r.conv,r.value,r.leadval].map(csvCell).join(",")));
   const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"}), a=document.createElement("a");
   a.href=URL.createObjectURL(blob); a.download="woat-clubs_"+DATA.from+"_to_"+DATA.to+".csv"; a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
@@ -358,7 +371,7 @@ document.getElementById("sendLink").onclick=async()=>{
   const {error}=await sb.auth.signInWithOtp({email, options:{shouldCreateUser:false, emailRedirectTo:location.origin}});
   authMsg.textContent = error ? ("Couldn’t send: "+error.message) : "Check your email for a login link, then return here.";
 };
-const DETAIL_HEAD=["Checkout ID","Status","Club","Location","First Name","Last Name","Email","Phone","Plan","Recurring Price","Contract Value","Platform","Lead At","Joined At","Lost At"];
+const DETAIL_HEAD=["Checkout ID","Status","Location","Club #","Client","First Name","Last Name","Email","Phone","Plan","Recurring Price","Contract Value","Platform","Lead At","Joined At","Lost At"];
 async function fetchDetailRows(session, from, to){
   const key=from+"|"+to+"|"+(PLANFILTER||"");
   if(DETAIL_CACHE && DETAIL_KEY===key) return DETAIL_CACHE;
@@ -373,7 +386,7 @@ async function fetchDetailRows(session, from, to){
 }
 function detailToCSV(rows){
   const lines=[DETAIL_HEAD.join(",")];
-  rows.forEach(x=>lines.push([x.checkout_id,x.status,x.club,x.location,x.first_name,x.last_name,x.email,x.phone,x.plan,x.recurring_price,x.contract_value,x.platform,x.lead_at,x.joined_at,x.lost_at].map(csvCell).join(",")));
+  rows.forEach(x=>lines.push([x.checkout_id,x.status,clubLabel(x.location),x.location,x.club,x.first_name,x.last_name,x.email,x.phone,x.plan,x.recurring_price,x.contract_value,x.platform,x.lead_at,x.joined_at,x.lost_at].map(csvCell).join(",")));
   return lines.join("\n");
 }
 function downloadText(name, text){
@@ -396,7 +409,7 @@ async function exportClubPII(loc, ev){
   try{
     const rows=await fetchDetailRows(session, from, to);
     const sub=rows.filter(x=>String(x.location)===String(loc));
-    if(!sub.length){ authPanel.style.display="block"; authMsg.textContent="No member rows for Club "+loc+" in this range."; }
+    if(!sub.length){ authPanel.style.display="block"; authMsg.textContent="No member rows for "+clubLabel(loc)+" in this range."; }
     else downloadText("woat-club-"+loc+"-members_"+from+"_to_"+to+".csv", detailToCSV(sub));
   }catch(e){ authError(e); }
   if(link) link.innerHTML=orig;
