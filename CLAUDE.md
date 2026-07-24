@@ -15,9 +15,14 @@ iCart checkout channels (credit-card, ACH, kiosk).
    `checkouts` table.
 3. A scheduled **sweep** flips stale unconverted leads (>15 min) from `lead` → `lost`.
 4. **Reporting views** (unique-person, deduped) aggregate the data.
-5. A `report` Edge Function serves aggregates as JSON (public, no PII).
-6. A self-contained HTML **dashboard** on GitHub Pages (reports.woat.org) reads the
-   `report` function and renders KPIs/charts.
+5. A `report` Edge Function serves aggregates as JSON (public, no PII); the
+   `report_range(p_from,p_to)` Postgres RPC serves the same aggregates for an arbitrary
+   date range (public/anon).
+6. A self-contained HTML **dashboard** on GitHub Pages (reports.woat.org) reads
+   `report_range` and renders KPIs/charts with a date-range picker.
+7. **Member-gated PII**: the `report_detail(p_from,p_to)` RPC returns individual customer
+   rows and is callable **only by authenticated users**; the dashboard adds Supabase email
+   (magic-link) login to unlock a full-detail CSV export.
 
 ## Key locations & IDs (no secrets)
 - **Supabase**: project `woa-icart-tracking`, ref `vxfhxgtcwczvoewozgws`, org "Sneeze It".
@@ -74,6 +79,30 @@ iCart checkout channels (credit-card, ACH, kiosk).
 - Verified end-to-end. Historical "WORKOUT ANYTIME" rows can't be split cc-vs-kiosk retroactively
   (only 3 identifiable ach rows were backfilled). Everything **going forward** is tagged.
 
+## Dashboard controls + CSV exports
+- **Date range**: preset dropdown (Last 30 days [default on load], Last 90 days, This year,
+  2026, 2025, All time) + **Custom** reveals from/to calendar pickers. Everything is driven by
+  the `report_range(p_from,p_to)` RPC (range-scoped unique-person dedup, `SECURITY DEFINER`,
+  granted to anon/authenticated).
+- **Public CSV** (`⇩ CSV`): club-summary table for the selected range — no PII, always available.
+- **Member-details CSV** (`⇩ Member details`): individual rows with full customer info
+  (checkout_id, status, club, location, first/last name, email, phone, plan, recurring_price,
+  contract_value, platform, lead/joined/lost timestamps). Only shows when signed in.
+
+## Member auth / PII gating
+- `report_detail(p_from,p_to)` is `SECURITY DEFINER`; `EXECUTE` **revoked from public + anon**,
+  **granted to `authenticated`** only. Verified: anon key → `401 permission denied`; a logged-in
+  user's JWT → rows. The public aggregate path (`report_range`) is untouched.
+- **Supabase Auth = invite-only**: public sign-ups **disabled** (critical — otherwise anyone could
+  self-register into the `authenticated` role and read PII), anonymous sign-ins off, confirm-email on.
+  Site URL + redirect allow-list = `https://reports.woat.org` (+ `/**`) for the magic-link flow.
+- Access is granted by **inviting an email** under Authentication → Users → Add user → Send invitation
+  (admin @sneeze.it addresses). Login on the dashboard: `🔒 Member login` → "Email me a login link"
+  → click the emailed link (uses `signInWithOtp`, `shouldCreateUser:false`).
+- Frontend uses `@supabase/supabase-js@2` (jsDelivr CDN); session persists in localStorage; the
+  anon key stays embedded (public by design). Built-in Supabase mailer is rate-limited (~few/hr) —
+  add custom SMTP if more users/own-domain email is needed.
+
 ## Operational notes / lessons
 - **Daily DB backups** are enabled. Raw rows are append-only; reporting is via views.
 - **CHECK-BEFORE-DELETE rule**: before any DELETE/UPDATE on real data, run `SELECT COUNT(*)` with the
@@ -85,10 +114,12 @@ iCart checkout channels (credit-card, ACH, kiosk).
 ## Status
 - **DONE**: checkout_id + mirror live on all 3 sites; Supabase DB + lost-join sweep + reporting views;
   `report` function; hosted dashboard at reports.woat.org (HTTPS, favicon); 2025 + 2026 history loaded;
-  unique-person reporting; platform tagging live.
+  unique-person reporting; platform tagging live; **date-range picker + range RPC**; **public club CSV**;
+  **invite-only member login + gated full-PII (`report_detail`) CSV export**.
 - **PARALLEL RUN**: new system runs alongside the old Zaps — nothing turned off, full rollback available.
 - **REMAINING**:
   1. Watch/compare the parallel run for a few days.
   2. **Cutover**: build the one-step GymSales Zap, point `app_config` at it, switch off the old Zaps.
   3. Optional: add a platform (cc/ach/kiosk) breakdown/filter to the dashboard.
-  4. Separate track: WordPress/Elementor modernization; move ABC credentials out of the plugin.
+  4. Optional: custom SMTP for auth emails; invite additional admins as needed.
+  5. Separate track: WordPress/Elementor modernization; move ABC credentials out of the plugin.
