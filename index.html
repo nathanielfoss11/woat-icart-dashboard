@@ -180,8 +180,9 @@ function presetRange(p){
 let DATA=null, RANGE=null, AUTHED=false, DETAIL_CACHE=null, DETAIL_KEY=null, PLANFILTER=null;
 let NAMES={};
 const escAttr=s=>esc(s).replace(/'/g,"&#39;");
+const normLoc=x=>String(x==null?"":x).replace(/\D/g,"").replace(/^0+/,"");
 function clubLabel(loc){
-  const k=String(loc==null?"":loc).replace(/\D/g,"").replace(/^0+/,"");
+  const k=normLoc(loc);
   return (k && NAMES[k]) ? NAMES[k] : ("Club "+loc);
 }
 async function loadNames(){
@@ -268,7 +269,18 @@ function drawDonut(t){
 }
 
 function clubRows(){
-  return (DATA.by_location||[]).map(r=>({location:r.location||"—",client:r.client||"",entries:n(r.entries),joins:n(r.joins),lost:n(r.lost_joins),value:n(r.join_contract_value),leadval:n(r.lead_contract_value),conv:n(r.conversion_rate)}));
+  // One club (location number) can arrive as several rows under different client-name
+  // spellings (e.g. historical import with a null client vs. live "WORKOUT ANYTIME").
+  // Merge them into a single row per club so each club shows once.
+  const byKey={};
+  (DATA.by_location||[]).forEach(r=>{
+    const loc=r.location==null?"—":r.location, k=normLoc(loc)||("raw:"+loc);
+    const t=byKey[k]||(byKey[k]={location:loc,client:r.client||"",entries:0,joins:0,lost:0,value:0,leadval:0});
+    t.entries+=n(r.entries); t.joins+=n(r.joins); t.lost+=n(r.lost_joins);
+    t.value+=n(r.join_contract_value); t.leadval+=n(r.lead_contract_value);
+    if(!t.client && r.client) t.client=r.client;
+  });
+  return Object.values(byKey).map(t=>Object.assign(t,{conv: t.entries? (t.joins/t.entries*100):0}));
 }
 let SORT={key:"entries", dir:"desc"};
 function sortClubRows(rows){
@@ -408,7 +420,7 @@ async function exportClubPII(loc, ev){
   if(link) link.innerHTML="…";
   try{
     const rows=await fetchDetailRows(session, from, to);
-    const sub=rows.filter(x=>String(x.location)===String(loc));
+    const sub=rows.filter(x=>normLoc(x.location)===normLoc(loc));
     if(!sub.length){ authPanel.style.display="block"; authMsg.textContent="No member rows for "+clubLabel(loc)+" in this range."; }
     else downloadText("woat-club-"+loc+"-members_"+from+"_to_"+to+".csv", detailToCSV(sub));
   }catch(e){ authError(e); }
