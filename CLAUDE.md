@@ -85,14 +85,23 @@ iCart checkout channels (credit-card, ACH, kiosk).
   the `report_range(p_from,p_to)` RPC (range-scoped unique-person dedup, `SECURITY DEFINER`,
   granted to anon/authenticated).
 - **Public CSV** (`⇩ CSV`): club-summary table for the selected range — no PII, always available.
-- **Member-details CSV** (`⇩ Member details`): individual rows with full customer info
+- **Member-details CSV** (`⇩ Member details`): full customer info per person
   (checkout_id, status, club, location, first/last name, email, phone, plan, recurring_price,
   contract_value, platform, lead/joined/lost timestamps). Only shows when signed in.
+- **Per-club CSV** (`⇩` on each Clubs-table row): same member-detail columns, filtered to that
+  club's `location`. The link renders only when signed in. Note: a club can appear as several
+  summary rows when its records carry different client-name spellings under one location number;
+  each row's `⇩` exports the whole club by location, so the file is complete regardless.
+- Both member exports are **unique-person deduped** (same rule as the summary, applied within the
+  range), so a club's export count matches its summary total. `report_detail` returns the rows as a
+  single **`jsonb`** array (not a row set) — this deliberately bypasses PostgREST's 1000-row cap that
+  was silently truncating the full export.
 
 ## Member auth / PII gating
-- `report_detail(p_from,p_to)` is `SECURITY DEFINER`; `EXECUTE` **revoked from public + anon**,
-  **granted to `authenticated`** only. Verified: anon key → `401 permission denied`; a logged-in
-  user's JWT → rows. The public aggregate path (`report_range`) is untouched.
+- `report_detail(p_from,p_to)` is `SECURITY DEFINER`, returns a single `jsonb` array of deduped
+  person-rows; `EXECUTE` **revoked from public + anon**, **granted to `authenticated`** only.
+  Verified: anon key → `401 permission denied`; a logged-in user's JWT → full deduped set (no
+  1000-row cap). The public aggregate path (`report_range`) is untouched.
 - **Supabase Auth = invite-only**: public sign-ups **disabled** (critical — otherwise anyone could
   self-register into the `authenticated` role and read PII), anonymous sign-ins off, confirm-email on.
   Site URL + redirect allow-list = `https://reports.woat.org` (+ `/**`) for the magic-link flow.
