@@ -135,6 +135,15 @@
     </table>
   </div>
 
+  <div class="card" id="utmCard" style="display:none">
+    <h2>Campaign sources (UTM)</h2>
+    <p class="cap">Leads, joins and conversion by ad source / medium / campaign for the selected range. &ldquo;Untagged&rdquo; = visits with no utm_* on the URL (all traffic before UTM tracking went live).</p>
+    <table id="utmTable">
+      <thead><tr><th>Source</th><th>Medium</th><th>Campaign</th><th>Entries</th><th>Joins</th><th>Lost</th><th>Conv.</th><th>Join value</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
   <p class="foot" id="foot"></p>
 </div>
 <div class="tip" id="tip"></div>
@@ -221,8 +230,23 @@ function render(){
   document.getElementById("sub").textContent="iCart online joins · "+rangeLabel()+(PLANFILTER?(" · "+PLANFILTER+" campaign"):"");
   const kpis=[{label:"Entries",val:fmt(s.entries)},{label:"Joins",val:fmt(s.joins)},{label:"Lost Joins",val:fmt(s.lost_joins)},{label:"Conversion",val:conv.toFixed(1)+"%"},{label:"Join Value",val:money(s.join_contract_value)},{label:"Lost Value",val:money(s.lead_contract_value)}];
   document.getElementById("kpis").innerHTML=kpis.map(k=>`<div class="tile"><div class="label">${k.label}</div><div class="val">${k.val}</div></div>`).join("");
-  drawLine(); renderPlans(); drawBars();
+  drawLine(); renderPlans(); drawBars(); renderUtms();
   document.getElementById("foot").textContent="Live from the iCart database · unique-person counts · range "+DATA.from+" to "+DATA.to+".";
+}
+
+async function renderUtms(){
+  const card=document.getElementById("utmCard"), tb=document.querySelector("#utmTable tbody");
+  if(!RANGE){ card.style.display="none"; return; }
+  try{
+    const hdr={apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"};
+    const r=await fetch(SUPA+"/rest/v1/rpc/report_utms",{method:"POST",headers:hdr,body:JSON.stringify({p_from:RANGE[0],p_to:RANGE[1],p_plan:PLANFILTER})});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const j=await r.json(), rows=(j&&j.rows)||[];
+    if(!rows.length){ card.style.display="none"; return; }
+    const lab=v=>(v==="(none)"?'<span style="color:var(--muted)">Untagged</span>':esc(v));
+    tb.innerHTML=rows.map(x=>`<tr><td>${lab(x.utm_source)}</td><td>${lab(x.utm_medium)}</td><td>${lab(x.utm_campaign)}</td><td>${fmt(x.entries)}</td><td>${fmt(x.joins)}</td><td>${fmt(x.lost_joins)}</td><td>${pct(x.conversion_rate)}</td><td>${money(x.join_contract_value)}</td></tr>`).join("");
+    card.style.display="block";
+  }catch(e){ card.style.display="none"; }
 }
 
 function series(){
