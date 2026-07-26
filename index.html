@@ -178,12 +178,15 @@ const ymd=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
 function presetRange(p){
   const today=new Date(), t=ymd(today);
   const back=k=>{const d=new Date(today);d.setDate(d.getDate()-k);return ymd(d);};
-  if(p==="30")return[back(29),t];
-  if(p==="90")return[back(89),t];
-  if(p==="ytd")return[today.getFullYear()+"-01-01",t];
+  // Upper bound = tomorrow (local) so today's leads still show even when stored under
+  // tomorrow's UTC date (evening-local traffic = next-day UTC). Chart/label clamp back to today.
+  const tmr=(()=>{const d=new Date(today);d.setDate(d.getDate()+1);return ymd(d);})();
+  if(p==="30")return[back(29),tmr];
+  if(p==="90")return[back(89),tmr];
+  if(p==="ytd")return[today.getFullYear()+"-01-01",tmr];
   if(p==="2026")return["2026-01-01","2026-12-31"];
   if(p==="2025")return["2025-01-01","2025-12-31"];
-  if(p==="all")return["2015-01-01",t];
+  if(p==="all")return["2015-01-01",tmr];
   return null;
 }
 
@@ -218,7 +221,8 @@ async function load(from,to){
 }
 
 function rangeLabel(){
-  const f=new Date(DATA.from+"T00:00:00"), t=new Date(DATA.to+"T00:00:00"), o={month:"short",day:"numeric"};
+  const todayStr=ymd(new Date()), toStr=(DATA.to>todayStr)?todayStr:DATA.to;
+  const f=new Date(DATA.from+"T00:00:00"), t=new Date(toStr+"T00:00:00"), o={month:"short",day:"numeric"};
   return f.toLocaleDateString("en-US",o)+" – "+t.toLocaleDateString("en-US",Object.assign({year:"numeric"},o));
 }
 
@@ -251,7 +255,8 @@ async function renderUtms(){
 
 function series(){
   const bd={}; (DATA.by_day||[]).forEach(d=>bd[d.day]={entries:n(d.entries),joins:n(d.joins)});
-  const from=new Date(DATA.from+"T00:00:00"), to=new Date(DATA.to+"T00:00:00"), span=Math.round((to-from)/86400000)+1;
+  const todayStr=ymd(new Date()), toStr=(DATA.to>todayStr)?todayStr:DATA.to;
+  const from=new Date(DATA.from+"T00:00:00"), to=new Date(toStr+"T00:00:00"), span=Math.round((to-from)/86400000)+1;
   if(span<=92){ const pts=[]; for(let dt=new Date(from);dt<=to;dt.setDate(dt.getDate()+1)){const k=ymd(dt),v=bd[k]||{entries:0,joins:0};pts.push({label:(dt.getMonth()+1)+"/"+dt.getDate(),entries:v.entries,joins:v.joins});} return pts; }
   const m={}; (DATA.by_day||[]).forEach(d=>{const ym=(d.day||"").slice(0,7);if(!ym)return;(m[ym]=m[ym]||{entries:0,joins:0});m[ym].entries+=n(d.entries);m[ym].joins+=n(d.joins);});
   return Object.keys(m).sort().map(k=>({label:MONTHS[+k.slice(5,7)-1]+" '"+k.slice(2,4),entries:m[k].entries,joins:m[k].joins}));
