@@ -210,6 +210,7 @@ function presetRange(p){
 
 let DATA=null, RANGE=null, AUTHED=false, DETAIL_CACHE=null, DETAIL_KEY=null, PLANFILTER=null;
 let PREV=null, PREVWIN=null, CLUBFILTER="", UTMHIDE=false;
+const SHOWDELTAS=false; // period-over-period % change on KPIs (off for now)
 let NAMES={};
 const escAttr=s=>esc(s).replace(/'/g,"&#39;");
 const normLoc=x=>String(x==null?"":x).replace(/\D/g,"").replace(/^0+/,"");
@@ -238,15 +239,18 @@ async function load(from,to){
   try{
     const hdr={apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"};
     // Kick off the previous-period fetch in parallel (for period-over-period deltas).
-    PREVWIN=prevWindow(from,to);
-    const prevP=fetch(SUPA+"/rest/v1/rpc/report_filtered",{method:"POST",headers:hdr,body:JSON.stringify({p_from:PREVWIN[0],p_to:PREVWIN[1],p_plan:PLANFILTER})})
-      .then(r=>r.ok?r.json():null).catch(()=>null);
+    let prevP=null;
+    if(SHOWDELTAS){
+      PREVWIN=prevWindow(from,to);
+      prevP=fetch(SUPA+"/rest/v1/rpc/report_filtered",{method:"POST",headers:hdr,body:JSON.stringify({p_from:PREVWIN[0],p_to:PREVWIN[1],p_plan:PLANFILTER})})
+        .then(r=>r.ok?r.json():null).catch(()=>null);
+    }
     const r=await fetch(SUPA+"/rest/v1/rpc/report_filtered",{method:"POST",headers:hdr,body:JSON.stringify({p_from:from,p_to:to,p_plan:PLANFILTER})});
     if(!r.ok) throw new Error("HTTP "+r.status);
     DATA=await r.json();
     if(DATA.error) throw new Error(DATA.error);
     status.style.display="none"; render();
-    prevP.then(p=>{ if(p&&!p.error){ PREV=p; applyDeltas(); } });
+    if(prevP) prevP.then(p=>{ if(p&&!p.error){ PREV=p; applyDeltas(); } });
   }catch(e){ status.innerHTML="Couldn't load the report ("+e.message+").<br>Click &#8635; Refresh to try again."; }
 }
 
@@ -274,6 +278,7 @@ function kpiDefs(s){
   ];
 }
 function applyDeltas(){
+  if(!SHOWDELTAS) return;
   if(!DATA||!DATA.summary) return;
   const defs=kpiDefs(DATA.summary), ps=(PREV&&PREV.summary)||null;
   const pv={entries:ps&&n(ps.entries),joins:ps&&n(ps.joins),incomplete:ps&&n(ps.lost_joins),
@@ -305,8 +310,8 @@ function render(){
   document.getElementById("locCard").style.display="block";
   const s=DATA.summary||{}, conv=n(s.conversion_rate);
   document.getElementById("sub").textContent="iCart online joins · "+rangeLabel()+(PLANFILTER?(" · "+PLANFILTER+" campaign"):"");
-  document.getElementById("kpis").innerHTML=kpiDefs(s).map(k=>`<div class="tile${k.muted?" muted":""}"${k.title?` title="${escAttr(k.title)}"`:""}><div class="label">${k.label}</div><div class="val">${k.val}</div><div class="delta" id="d_${k.key}"></div></div>`).join("");
-  applyDeltas();
+  document.getElementById("kpis").innerHTML=kpiDefs(s).map(k=>`<div class="tile${k.muted?" muted":""}"${k.title?` title="${escAttr(k.title)}"`:""}><div class="label">${k.label}</div><div class="val">${k.val}</div>${SHOWDELTAS?`<div class="delta" id="d_${k.key}"></div>`:""}</div>`).join("");
+  if(SHOWDELTAS) applyDeltas();
   drawLine(); renderPlans(); drawBars(); renderUtms();
   document.getElementById("foot").textContent="Live from the iCart database · unique-person counts · range "+DATA.from+" to "+DATA.to+".";
 }
