@@ -35,6 +35,11 @@
   .tile{background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:12px;padding:14px 15px}
   .tile .label{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
   .tile .val{font-size:26px;font-weight:650;margin-top:8px;letter-spacing:-0.02em}
+  .tile .delta{margin-top:6px;font-size:12px;font-weight:600;min-height:15px;color:var(--text2)}
+  .tile .delta.pos{color:var(--good)} .tile .delta.neg{color:var(--red)} .tile .delta.flat{color:var(--muted)}
+  .tile .delta .dsub{color:var(--muted);font-weight:400}
+  .tile.muted{border-top-color:var(--border)}
+  .tile.muted .val{font-size:20px;color:var(--text2);font-weight:600}
   .grid2{display:grid;grid-template-columns:1.55fr 1fr;gap:18px;margin-bottom:18px}
   @media (max-width:860px){.grid2{grid-template-columns:1fr}}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 18px 12px}
@@ -191,6 +196,7 @@ function presetRange(p){
 }
 
 let DATA=null, RANGE=null, AUTHED=false, DETAIL_CACHE=null, DETAIL_KEY=null, PLANFILTER=null;
+let PREV=null, PREVWIN=null;
 let NAMES={};
 const escAttr=s=>esc(s).replace(/'/g,"&#39;");
 const normLoc=x=>String(x==null?"":x).replace(/\D/g,"").replace(/^0+/,"");
@@ -206,17 +212,28 @@ async function loadNames(){
 }
 loadNames();
 
+function prevWindow(from,to){
+  const f=new Date(from+"T00:00:00"), t=new Date(to+"T00:00:00");
+  const len=Math.max(1,Math.round((t-f)/86400000));
+  const pf=new Date(f); pf.setDate(pf.getDate()-len);
+  return [ymd(pf), from];
+}
 async function load(from,to){
   const status=document.getElementById("status"); RANGE=[from,to];
-  DETAIL_CACHE=null; DETAIL_KEY=null;
+  DETAIL_CACHE=null; DETAIL_KEY=null; PREV=null;
   status.style.display="block"; status.textContent="Loading "+from+" → "+to+" …";
   try{
     const hdr={apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"};
+    // Kick off the previous-period fetch in parallel (for period-over-period deltas).
+    PREVWIN=prevWindow(from,to);
+    const prevP=fetch(SUPA+"/rest/v1/rpc/report_filtered",{method:"POST",headers:hdr,body:JSON.stringify({p_from:PREVWIN[0],p_to:PREVWIN[1],p_plan:PLANFILTER})})
+      .then(r=>r.ok?r.json():null).catch(()=>null);
     const r=await fetch(SUPA+"/rest/v1/rpc/report_filtered",{method:"POST",headers:hdr,body:JSON.stringify({p_from:from,p_to:to,p_plan:PLANFILTER})});
     if(!r.ok) throw new Error("HTTP "+r.status);
     DATA=await r.json();
     if(DATA.error) throw new Error(DATA.error);
     status.style.display="none"; render();
+    prevP.then(p=>{ if(p&&!p.error){ PREV=p; applyDeltas(); } });
   }catch(e){ status.innerHTML="Couldn't load the report ("+e.message+").<br>Click &#8635; Refresh to try again."; }
 }
 
@@ -226,14 +243,57 @@ function rangeLabel(){
   return f.toLocaleDateString("en-US",o)+" – "+t.toLocaleDateString("en-US",Object.assign({year:"numeric"},o));
 }
 
+function kpiDefs(s){
+  const conv=n(s.conversion_rate);
+  return [
+    {key:"entries",label:"Entries",val:fmt(s.entries),cur:n(s.entries),kind:"count",good:"up",
+      title:"People who started an iCart checkout in this range (unique-person)."},
+    {key:"joins",label:"Joins",val:fmt(s.joins),cur:n(s.joins),kind:"count",good:"up",
+      title:"Completed memberships in this range."},
+    {key:"incomplete",label:"Incomplete",val:fmt(s.lost_joins),cur:n(s.lost_joins),kind:"count",good:"down",
+      title:"Checkouts started but not completed within ~15 minutes (abandoned) — not necessarily lost sales."},
+    {key:"conversion",label:"Conversion",val:conv.toFixed(1)+"%",cur:conv,kind:"rate",good:"up",
+      title:"Joins ÷ Entries for this range."},
+    {key:"joinval",label:"Join Value",val:money(s.join_contract_value),cur:n(s.join_contract_value),kind:"count",good:"up",
+      title:"Booked annual contract value of completed joins."},
+    {key:"unconv",label:"Unconverted value",val:money(s.lead_contract_value),cur:n(s.lead_contract_value),kind:"count",good:"down",muted:true,
+      title:"Potential contract value of incomplete checkouts — a ceiling, not booked revenue."}
+  ];
+}
+function applyDeltas(){
+  if(!DATA||!DATA.summary) return;
+  const defs=kpiDefs(DATA.summary), ps=(PREV&&PREV.summary)||null;
+  const pv={entries:ps&&n(ps.entries),joins:ps&&n(ps.joins),incomplete:ps&&n(ps.lost_joins),
+            conversion:ps&&n(ps.conversion_rate),joinval:ps&&n(ps.join_contract_value),unconv:ps&&n(ps.lead_contract_value)};
+  const baseline=ps?n(ps.entries):0;
+  defs.forEach(k=>{
+    const el=document.getElementById("d_"+k.key); if(!el) return;
+    if(!ps||!baseline){ el.className="delta"; el.innerHTML=""; return; }
+    const prevV=pv[k.key]; let txt,dir;
+    if(k.kind==="rate"){
+      const d=k.cur-prevV; dir=d>0?"up":(d<0?"down":"flat");
+      txt=(d>0?"+":(d<0?"−":""))+Math.abs(d).toFixed(1)+" pts";
+    } else {
+      if(prevV===0){ el.className="delta flat"; el.innerHTML="new <span class=\"dsub\">vs prev</span>"; el.title="No activity in the previous comparable period"; return; }
+      const d=(k.cur-prevV)/prevV*100; dir=d>0?"up":(d<0?"down":"flat");
+      const a=Math.abs(d);
+      txt=(d>0?"+":(d<0?"−":""))+(a>=10?a.toFixed(0):a.toFixed(1))+"%";
+    }
+    const cls=dir==="flat"?"flat":(((dir==="up")===(k.good==="up"))?"pos":"neg");
+    const arrow=dir==="up"?"▲":(dir==="down"?"▼":"–");
+    el.className="delta "+cls;
+    el.innerHTML=arrow+" "+txt+" <span class=\"dsub\">vs prev</span>";
+    el.title="Previous comparable period: "+PREVWIN[0]+" → "+PREVWIN[1];
+  });
+}
 function render(){
   document.getElementById("kpis").style.display="grid";
   document.getElementById("charts").style.display="grid";
   document.getElementById("locCard").style.display="block";
   const s=DATA.summary||{}, conv=n(s.conversion_rate);
   document.getElementById("sub").textContent="iCart online joins · "+rangeLabel()+(PLANFILTER?(" · "+PLANFILTER+" campaign"):"");
-  const kpis=[{label:"Entries",val:fmt(s.entries)},{label:"Joins",val:fmt(s.joins)},{label:"Lost Joins",val:fmt(s.lost_joins)},{label:"Conversion",val:conv.toFixed(1)+"%"},{label:"Join Value",val:money(s.join_contract_value)},{label:"Lost Value",val:money(s.lead_contract_value)}];
-  document.getElementById("kpis").innerHTML=kpis.map(k=>`<div class="tile"><div class="label">${k.label}</div><div class="val">${k.val}</div></div>`).join("");
+  document.getElementById("kpis").innerHTML=kpiDefs(s).map(k=>`<div class="tile${k.muted?" muted":""}"${k.title?` title="${escAttr(k.title)}"`:""}><div class="label">${k.label}</div><div class="val">${k.val}</div><div class="delta" id="d_${k.key}"></div></div>`).join("");
+  applyDeltas();
   drawLine(); renderPlans(); drawBars(); renderUtms();
   document.getElementById("foot").textContent="Live from the iCart database · unique-person counts · range "+DATA.from+" to "+DATA.to+".";
 }
