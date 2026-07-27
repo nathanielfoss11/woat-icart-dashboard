@@ -11,15 +11,16 @@
     --page:#f9f9f7; --surface:#fcfcfb; --text:#0b0b0b; --text2:#52514e; --muted:#898781;
     --grid:#e1e0d9; --baseline:#c3c2b7; --border:rgba(11,11,11,0.10);
     --blue:#0A419C; --green:#008300; --red:#e34948; --good:#006300; --accent:#A4D6DE;
+    --teal:#0E8FA3; --conv:#C9701A;
   }
   @media (prefers-color-scheme: dark){ :root:where(:not([data-theme="light"])){
     --page:#0d0d0d; --surface:#1a1a19; --text:#fff; --text2:#c3c2b7; --muted:#898781;
     --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,0.10);
-    --blue:#4F7AD8; --green:#008300; --accent:#A4D6DE; --red:#e66767; --good:#0ca30c; } }
+    --blue:#4F7AD8; --green:#008300; --accent:#A4D6DE; --red:#e66767; --good:#0ca30c; --teal:#4FC3D6; --conv:#E7973B; } }
   :root[data-theme="dark"]{
     --page:#0d0d0d; --surface:#1a1a19; --text:#fff; --text2:#c3c2b7; --muted:#898781;
     --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,0.10);
-    --blue:#4F7AD8; --green:#008300; --accent:#A4D6DE; --red:#e66767; --good:#0ca30c; }
+    --blue:#4F7AD8; --green:#008300; --accent:#A4D6DE; --red:#e66767; --good:#0ca30c; --teal:#4FC3D6; --conv:#E7973B; }
   *{box-sizing:border-box}
   body{margin:0;background:var(--page);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
   .wrap{max-width:1160px;margin:0 auto;padding:28px 24px 60px}
@@ -116,7 +117,8 @@
       <p class="cap">People who started checkout, and how many joined.</p>
       <div class="legend">
         <span><i class="swatch" style="background:var(--blue)"></i>Entries</span>
-        <span><i class="swatch" style="background:var(--green)"></i>Joins</span>
+        <span><i class="swatch" style="background:var(--teal)"></i>Joins</span>
+        <span><i class="swatch" style="background:var(--conv)"></i>Conversion&nbsp;%</span>
       </div>
       <div id="lineChart"></div>
     </div>
@@ -134,6 +136,10 @@
     <h2>Clubs</h2>
     <p class="cap">Entries, joins and conversion by club for the selected range &mdash; &#8681; CSV exports the whole table; sign in to export a single club&rsquo;s member details.</p>
     <div id="bars"></div>
+    <div class="clubtools">
+      <input id="clubFilter" type="search" placeholder="Filter clubs by name or number&hellip;" autocomplete="off">
+      <span id="clubCount"></span>
+    </div>
     <table id="locTable">
       <thead><tr><th data-sort="club" data-label="Club">Club</th><th data-sort="entries" data-label="Entries">Entries</th><th data-sort="joins" data-label="Joins">Joins</th><th data-sort="lost" data-label="Lost">Lost</th><th data-sort="conv" data-label="Conv.">Conv.</th><th data-sort="value" data-label="Join value">Join value</th><th class="expcol"></th></tr></thead>
       <tbody></tbody>
@@ -143,6 +149,7 @@
   <div class="card" id="utmCard" style="display:none">
     <h2>Campaign sources (UTM)</h2>
     <p class="cap">Leads, joins and conversion by ad source / medium / campaign for the selected range. &ldquo;Untagged&rdquo; = visits with no utm_* on the URL (all traffic before UTM tracking went live).</p>
+    <label class="utmtoggle"><input type="checkbox" id="hideUntagged"> Hide untagged</label>
     <table id="utmTable">
       <thead><tr><th>Source</th><th>Medium</th><th>Campaign</th><th>Entries</th><th>Joins</th><th>Lost</th><th>Conv.</th><th>Join value</th></tr></thead>
       <tbody></tbody>
@@ -162,6 +169,12 @@ th.expcol,td.expcol{width:34px;text-align:center;padding-right:2px}
 th[data-sort]{cursor:pointer;user-select:none;white-space:nowrap}
 th[data-sort]:hover{color:var(--text2)}
 th[data-sort] .arw{font-size:9px;margin-left:3px;color:var(--blue)}
+#locTable thead th{position:sticky;top:0;background:var(--surface);z-index:2}
+.clubtools{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:2px 0 4px}
+#clubFilter{flex:1;min-width:180px;max-width:340px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font:inherit}
+#clubCount{color:var(--muted);font-size:12px}
+.utmtoggle{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);margin:0 0 8px;cursor:pointer}
+.utmtoggle input{cursor:pointer}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -196,7 +209,7 @@ function presetRange(p){
 }
 
 let DATA=null, RANGE=null, AUTHED=false, DETAIL_CACHE=null, DETAIL_KEY=null, PLANFILTER=null;
-let PREV=null, PREVWIN=null;
+let PREV=null, PREVWIN=null, CLUBFILTER="", UTMHIDE=false;
 let NAMES={};
 const escAttr=s=>esc(s).replace(/'/g,"&#39;");
 const normLoc=x=>String(x==null?"":x).replace(/\D/g,"").replace(/^0+/,"");
@@ -305,11 +318,14 @@ async function renderUtms(){
     const hdr={apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"};
     const r=await fetch(SUPA+"/rest/v1/rpc/report_utms",{method:"POST",headers:hdr,body:JSON.stringify({p_from:RANGE[0],p_to:RANGE[1],p_plan:PLANFILTER})});
     if(!r.ok) throw new Error("HTTP "+r.status);
-    const j=await r.json(), rows=(j&&j.rows)||[];
-    if(!rows.length){ card.style.display="none"; return; }
+    const j=await r.json(), all=(j&&j.rows)||[];
+    if(!all.length){ card.style.display="none"; return; }
+    const isUntagged=x=>x.utm_source==="(none)"&&x.utm_medium==="(none)"&&x.utm_campaign==="(none)";
+    const rows=UTMHIDE?all.filter(x=>!isUntagged(x)):all;
+    card.style.display="block";
+    if(!rows.length){ tb.innerHTML=`<tr><td colspan="8" style="color:var(--muted)">No tagged campaigns in this range.</td></tr>`; return; }
     const lab=v=>(v==="(none)"?'<span style="color:var(--muted)">Untagged</span>':esc(v));
     tb.innerHTML=rows.map(x=>`<tr><td>${lab(x.utm_source)}</td><td>${lab(x.utm_medium)}</td><td>${lab(x.utm_campaign)}</td><td>${fmt(x.entries)}</td><td>${fmt(x.joins)}</td><td>${fmt(x.lost_joins)}</td><td>${pct(x.conversion_rate)}</td><td>${money(x.join_contract_value)}</td></tr>`).join("");
-    card.style.display="block";
   }catch(e){ card.style.display="none"; }
 }
 
@@ -317,27 +333,32 @@ function series(){
   const bd={}; (DATA.by_day||[]).forEach(d=>bd[d.day]={entries:n(d.entries),joins:n(d.joins)});
   const todayStr=ymd(new Date()), toStr=(DATA.to>todayStr)?todayStr:DATA.to;
   const from=new Date(DATA.from+"T00:00:00"), to=new Date(toStr+"T00:00:00"), span=Math.round((to-from)/86400000)+1;
-  if(span<=92){ const pts=[]; for(let dt=new Date(from);dt<=to;dt.setDate(dt.getDate()+1)){const k=ymd(dt),v=bd[k]||{entries:0,joins:0};pts.push({label:(dt.getMonth()+1)+"/"+dt.getDate(),entries:v.entries,joins:v.joins});} return pts; }
+  const wc=p=>{p.conv=p.entries?p.joins/p.entries*100:null;return p;};
+  if(span<=92){ const pts=[]; for(let dt=new Date(from);dt<=to;dt.setDate(dt.getDate()+1)){const k=ymd(dt),v=bd[k]||{entries:0,joins:0};pts.push(wc({label:(dt.getMonth()+1)+"/"+dt.getDate(),entries:v.entries,joins:v.joins}));} return pts; }
   const m={}; (DATA.by_day||[]).forEach(d=>{const ym=(d.day||"").slice(0,7);if(!ym)return;(m[ym]=m[ym]||{entries:0,joins:0});m[ym].entries+=n(d.entries);m[ym].joins+=n(d.joins);});
-  return Object.keys(m).sort().map(k=>({label:MONTHS[+k.slice(5,7)-1]+" '"+k.slice(2,4),entries:m[k].entries,joins:m[k].joins}));
+  return Object.keys(m).sort().map(k=>wc({label:MONTHS[+k.slice(5,7)-1]+" '"+k.slice(2,4),entries:m[k].entries,joins:m[k].joins}));
 }
 function niceMax(v){ if(v<=10)return 10; const p=Math.pow(10,Math.floor(Math.log10(v))), f=v/p; return (f<=1?1:f<=2?2:f<=5?5:10)*p; }
 
 function drawLine(){
   const s=series(), el=document.getElementById("lineChart");
   if(!s.length){el.innerHTML=`<p class="cap">No data in range.</p>`;return;}
-  const W=680,H=250,P={l:44,r:14,t:12,b:30},iw=W-P.l-P.r,ih=H-P.t-P.b;
+  const W=680,H=250,P={l:44,r:40,t:12,b:30},iw=W-P.l-P.r,ih=H-P.t-P.b;
   const max=niceMax(Math.max(1,...s.map(d=>d.entries))), step=max/5;
   const x=i=>P.l+(s.length<2?iw/2:(i/(s.length-1))*iw), y=v=>P.t+ih-(v/max)*ih;
+  const yc=v=>P.t+ih-(Math.max(0,Math.min(100,v))/100)*ih;
   let g=""; for(let t=0;t<=max+0.001;t+=step){ g+=`<line class="gl" x1="${P.l}" y1="${y(t)}" x2="${W-P.r}" y2="${y(t)}"/><text class="axis" x="${P.l-8}" y="${y(t)+4}" text-anchor="end">${t>=1000?Math.round(t/1000)+"k":Math.round(t)}</text>`; }
+  [0,50,100].forEach(t=>{ g+=`<text class="axis" x="${W-P.r+8}" y="${yc(t)+4}" text-anchor="start" style="fill:var(--conv)">${t}%</text>`; });
   const every=Math.max(1,Math.ceil(s.length/10));
   s.forEach((d,i)=>{ if(i%every===0||i===s.length-1) g+=`<text class="axis" x="${x(i)}" y="${H-8}" text-anchor="middle">${d.label}</text>`; });
   const path=(key,c)=>{let d=s.map((v,i)=>(i?"L":"M")+x(i)+" "+y(v[key])).join(" ");return `<path d="${d}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;};
   const area=(key,c)=>{let d="M"+x(0)+" "+y(0);s.forEach((v,i)=>d+=" L"+x(i)+" "+y(v[key]));d+=" L"+x(s.length-1)+" "+y(0)+" Z";return `<path d="${d}" fill="${c}" fill-opacity="0.30" stroke="none"/>`;};
+  let cd="",started=false; s.forEach((v,i)=>{ if(v.conv==null) return; cd+=(started?"L":"M")+x(i)+" "+yc(v.conv)+" "; started=true; });
+  const convPath=cd?`<path d="${cd}" fill="none" stroke="${cssv('--conv')}" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round" stroke-linecap="round"/>`:"";
   let dots=""; const de=s.length>40?every:1;
-  s.forEach((d,i)=>{ if(i%de===0||i===s.length-1) dots+=mk(x(i),y(d.entries),cssv('--blue'),"Entries",d.label,d.entries)+mk(x(i),y(d.joins),cssv('--green'),"Joins",d.label,d.joins); });
-  function mk(cx,cy,c,name,lab,v){return `<circle cx="${cx}" cy="${cy}" r="8" fill="transparent" onmousemove="showTip('<b>${lab}</b><br>${name}: ${fmt(v)}',event)" onmouseleave="hideTip()"/><circle cx="${cx}" cy="${cy}" r="3" fill="${c}"/>`;}
-  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${g}${area('entries',cssv('--accent'))}<line class="baseline" x1="${P.l}" y1="${y(0)}" x2="${W-P.r}" y2="${y(0)}"/>${path('entries',cssv('--blue'))}${path('joins',cssv('--green'))}${dots}</svg>`;
+  s.forEach((d,i)=>{ if(i%de===0||i===s.length-1){ dots+=mk(x(i),y(d.entries),cssv('--blue'),"Entries",d.label,fmt(d.entries))+mk(x(i),y(d.joins),cssv('--teal'),"Joins",d.label,fmt(d.joins)); if(d.conv!=null) dots+=mk(x(i),yc(d.conv),cssv('--conv'),"Conversion",d.label,pct(d.conv)); } });
+  function mk(cx,cy,c,name,lab,v){return `<circle cx="${cx}" cy="${cy}" r="8" fill="transparent" onmousemove="showTip('<b>${lab}</b><br>${name}: ${v}',event)" onmouseleave="hideTip()"/><circle cx="${cx}" cy="${cy}" r="3" fill="${c}"/>`;}
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${g}${area('entries',cssv('--accent'))}<line class="baseline" x1="${P.l}" y1="${y(0)}" x2="${W-P.r}" y2="${y(0)}"/>${path('entries',cssv('--blue'))}${path('joins',cssv('--teal'))}${convPath}${dots}</svg>`;
 }
 
 const esc=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
@@ -389,7 +410,12 @@ function drawBars(){
       <rect x="${P.l}" y="${yy}" width="${Math.max(w,2)}" height="18" rx="4" fill="${cssv('--blue')}" onmousemove="showTip('<b>${escAttr(nm)}</b><br>Joins: ${fmt(r.joins)} · Conv ${pct(r.conv)}',event)" onmouseleave="hideTip()"/>
       <text class="axis" x="${P.l+Math.max(w,2)+8}" y="${yy+13}" style="fill:var(--text2)">${fmt(r.joins)} · ${pct(r.conv)}</text>`;});
   barEl.innerHTML=`<svg viewBox="0 0 ${W} ${H}">${s}</svg>`;
-  const trows=sortClubRows(rows);
+  let trows=sortClubRows(rows);
+  const q=(CLUBFILTER||"").trim().toLowerCase(), qd=q.replace(/\D/g,"");
+  if(q) trows=trows.filter(r=> clubLabel(r.location).toLowerCase().includes(q) || (qd && normLoc(r.location).includes(qd)) );
+  const cc=document.getElementById("clubCount");
+  if(cc) cc.textContent = q ? (trows.length+" of "+rows.length+" clubs") : (rows.length+" clubs");
+  if(!trows.length){ tb.innerHTML=`<tr><td colspan="7" style="color:var(--muted)">No clubs match &ldquo;${esc(CLUBFILTER)}&rdquo;.</td></tr>`; return; }
   tb.innerHTML=trows.map(r=>{const loc=String(r.location).replace(/[^\w.-]/g,"");const nm=clubLabel(r.location);const link=AUTHED?`<a href="#" class="explink" title="Download ${escAttr(nm)} member details" onclick="exportClubPII('${loc}',event)">&#8681;</a>`:"";return `<tr><td>${esc(nm)}</td><td>${fmt(r.entries)}</td><td>${fmt(r.joins)}</td><td>${fmt(r.lost)}</td><td>${pct(r.conv)}</td><td>${money(r.value)}</td><td class="expcol">${link}</td></tr>`;}).join("");
 }
 
@@ -442,6 +468,12 @@ document.querySelectorAll("#locTable thead th[data-sort]").forEach(th=>{
 });
 updateSortIndicators();
 document.getElementById("refresh").onclick=()=>{ if(RANGE) load(RANGE[0],RANGE[1]); };
+(function(){
+  const cf=document.getElementById("clubFilter");
+  if(cf) cf.addEventListener("input",()=>{ CLUBFILTER=cf.value||""; if(DATA) drawBars(); });
+  const hu=document.getElementById("hideUntagged");
+  if(hu) hu.addEventListener("change",()=>{ UTMHIDE=hu.checked; renderUtms(); });
+})();
 document.getElementById("themeBtn").onclick=()=>{
   const cur=document.documentElement.getAttribute("data-theme");
   const next=cur==="dark"?"light":(cur==="light"?"dark":(matchMedia("(prefers-color-scheme: dark)").matches?"light":"dark"));
