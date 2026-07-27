@@ -511,7 +511,7 @@ function locUpdateLabel(){
   const btn=document.getElementById("locBtn"), panel=document.getElementById("locPanel"), list=document.getElementById("locList"), search=document.getElementById("locSearch"), sel=document.getElementById("locSel");
   if(!btn) return;
   let t=null; const reload=()=>{ clearTimeout(t); t=setTimeout(()=>{ if(RANGE) load(RANGE[0],RANGE[1]); }, 400); };
-  btn.onclick=(e)=>{ e.stopPropagation(); const open=panel.classList.toggle("open"); if(open){ renderLocList(); search.focus(); } };
+  btn.onclick=(e)=>{ e.stopPropagation(); const open=panel.classList.toggle("open"); if(open){ search.value=""; renderLocList(); search.focus(); } };
   document.addEventListener("click",(e)=>{ if(panel.classList.contains("open") && sel && !sel.contains(e.target)) panel.classList.remove("open"); });
   search.addEventListener("input", renderLocList);
   list.addEventListener("change",(e)=>{ const cb=e.target; if(cb&&cb.type==="checkbox"){ const v=cb.value; if(cb.checked){ if(!LOCFILTER.includes(v)) LOCFILTER.push(v); } else { LOCFILTER=LOCFILTER.filter(x=>x!==v); } locUpdateLabel(); reload(); } });
