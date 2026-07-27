@@ -414,7 +414,7 @@ document.getElementById("sendLink").onclick=async()=>{
   const {error}=await sb.auth.signInWithOtp({email, options:{shouldCreateUser:false, emailRedirectTo:location.origin}});
   authMsg.textContent = error ? ("Couldn’t send: "+error.message) : "Check your email for a login link, then return here.";
 };
-const DETAIL_HEAD=["Checkout ID","Status","Location","Club #","Client","First Name","Last Name","Email","Phone","Plan","Recurring Price","Contract Value","Platform","Lead At","Joined At","Lost At"];
+const DETAIL_HEAD=["Checkout ID","Status","Location","Club #","Client","First Name","Last Name","Email","Phone","Plan","Recurring Price","Contract Value","Platform","UTM Source","UTM Medium","UTM Campaign","UTM Term","UTM Content","Lead At","Joined At","Lost At"];
 async function fetchDetailRows(session, from, to){
   const key=from+"|"+to+"|"+(PLANFILTER||"");
   if(DETAIL_CACHE && DETAIL_KEY===key) return DETAIL_CACHE;
@@ -429,7 +429,7 @@ async function fetchDetailRows(session, from, to){
 }
 function detailToCSV(rows){
   const lines=[DETAIL_HEAD.join(",")];
-  rows.forEach(x=>lines.push([x.checkout_id,x.status,clubLabel(x.location),x.location,x.club,x.first_name,x.last_name,x.email,x.phone,x.plan,x.recurring_price,x.contract_value,x.platform,x.lead_at,x.joined_at,x.lost_at].map(csvCell).join(",")));
+  rows.forEach(x=>lines.push([x.checkout_id,x.status,clubLabel(x.location),x.location,x.club,x.first_name,x.last_name,x.email,x.phone,x.plan,x.recurring_price,x.contract_value,x.platform,x.utm_source,x.utm_medium,x.utm_campaign,x.utm_term,x.utm_content,x.lead_at,x.joined_at,x.lost_at].map(csvCell).join(",")));
   return lines.join("\n");
 }
 function downloadText(name, text){
