@@ -159,10 +159,10 @@
 
   <div class="card" id="utmCard" style="display:none">
     <h2>Campaign sources (UTM)</h2>
-    <p class="cap">Leads, joins and conversion by ad account / source / medium / campaign for the selected range. &ldquo;Untagged&rdquo; = visits with no utm_* on the URL (all traffic before UTM tracking went live).</p>
+    <p class="cap">Leads, joins and conversion by source / medium / campaign / ad account for the selected range. &ldquo;Untagged&rdquo; = visits with no utm_* on the URL (all traffic before UTM tracking went live).</p>
     <label class="utmtoggle"><input type="checkbox" id="hideUntagged"> Hide untagged</label>
     <table id="utmTable">
-      <thead><tr><th>Ad account</th><th>Source</th><th>Medium</th><th>Campaign</th><th>Entries</th><th>Joins</th><th>Lost</th><th>Conv.</th><th>Join value</th></tr></thead>
+      <thead><tr><th>Source</th><th>Medium</th><th>Campaign</th><th>Ad account</th><th>Entries</th><th>Joins</th><th>Lost</th><th>Conv.</th><th>Join value</th></tr></thead>
       <tbody></tbody>
     </table>
   </div>
@@ -368,7 +368,7 @@ async function renderUtms(){
     card.style.display="block";
     if(!rows.length){ tb.innerHTML=`<tr><td colspan="9" style="color:var(--muted)">No tagged campaigns in this range.</td></tr>`; return; }
     const lab=v=>(v==="(none)"?'<span style="color:var(--muted)">Untagged</span>':esc(v));
-    tb.innerHTML=rows.map(x=>`<tr><td>${lab(x.utm_account)}</td><td>${lab(x.utm_source)}</td><td>${lab(x.utm_medium)}</td><td>${lab(x.utm_campaign)}</td><td>${fmt(x.entries)}</td><td>${fmt(x.joins)}</td><td>${fmt(x.lost_joins)}</td><td>${pct(x.conversion_rate)}</td><td>${money(x.join_contract_value)}</td></tr>`).join("");
+    tb.innerHTML=rows.map(x=>`<tr><td>${lab(x.utm_source)}</td><td>${lab(x.utm_medium)}</td><td>${lab(x.utm_campaign)}</td><td>${lab(x.utm_account)}</td><td>${fmt(x.entries)}</td><td>${fmt(x.joins)}</td><td>${fmt(x.lost_joins)}</td><td>${pct(x.conversion_rate)}</td><td>${money(x.join_contract_value)}</td></tr>`).join("");
   }catch(e){ card.style.display="none"; }
 }
 
