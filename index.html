@@ -78,6 +78,12 @@
       <select id="account" aria-label="Ad account filter" title="Filter the whole dashboard by ad account (utm_account)">
         <option value="">All ad accounts</option>
       </select>
+      <select id="platform" aria-label="Platform filter" title="Filter the whole dashboard by checkout platform">
+        <option value="">All platforms</option>
+        <option value="cc">Credit card</option>
+        <option value="ach">ACH</option>
+        <option value="kiosk">Kiosk</option>
+      </select>
       <div class="msel" id="locSel">
         <button type="button" id="locBtn" title="Filter the whole dashboard by one or more club locations">All locations &#9662;</button>
         <div class="msel-panel" id="locPanel">
@@ -157,6 +163,15 @@
     </table>
   </div>
 
+  <div class="card" id="platCard" style="display:none">
+    <h2>By platform</h2>
+    <p class="cap">Entries, joins and conversion by checkout channel (credit-card, ACH, in-club kiosk) for the selected range. &ldquo;Untagged&rdquo; = rows from before platform tagging went live.</p>
+    <table id="platTable">
+      <thead><tr><th>Platform</th><th>Entries</th><th>Joins</th><th>Lost</th><th>Conv.</th><th>Join value</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
   <div class="card" id="utmCard" style="display:none">
     <h2>Campaign sources (UTM)</h2>
     <p class="cap">Leads, joins and conversion by source / medium / campaign / ad account for the selected range. &ldquo;Untagged&rdquo; = visits with no utm_* on the URL (all traffic before UTM tracking went live).</p>
@@ -230,7 +245,7 @@ function presetRange(p){
   return null;
 }
 
-let DATA=null, RANGE=null, AUTHED=false, DETAIL_CACHE=null, DETAIL_KEY=null, PLANFILTER=null, ACCOUNTFILTER=null;
+let DATA=null, RANGE=null, AUTHED=false, DETAIL_CACHE=null, DETAIL_KEY=null, PLANFILTER=null, ACCOUNTFILTER=null, PLATFILTER=null;
 let PREV=null, PREVWIN=null, CLUBFILTER="", UTMHIDE=false, LOCFILTER=[], ACCOUNTS=[];
 const SHOWDELTAS=false; // period-over-period % change on KPIs (off for now)
 const locArg=()=>LOCFILTER.length?LOCFILTER:null;
@@ -280,10 +295,10 @@ async function load(from,to){
     let prevP=null;
     if(SHOWDELTAS){
       PREVWIN=prevWindow(from,to);
-      prevP=fetch(SUPA+"/rest/v1/rpc/report_filtered",{method:"POST",headers:hdr,body:JSON.stringify({p_from:PREVWIN[0],p_to:PREVWIN[1],p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER})})
+      prevP=fetch(SUPA+"/rest/v1/rpc/report_filtered",{method:"POST",headers:hdr,body:JSON.stringify({p_from:PREVWIN[0],p_to:PREVWIN[1],p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER,p_platform:PLATFILTER})})
         .then(r=>r.ok?r.json():null).catch(()=>null);
     }
-    const r=await fetch(SUPA+"/rest/v1/rpc/report_filtered",{method:"POST",headers:hdr,body:JSON.stringify({p_from:from,p_to:to,p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER})});
+    const r=await fetch(SUPA+"/rest/v1/rpc/report_filtered",{method:"POST",headers:hdr,body:JSON.stringify({p_from:from,p_to:to,p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER,p_platform:PLATFILTER})});
     if(!r.ok) throw new Error("HTTP "+r.status);
     DATA=await r.json();
     if(DATA.error) throw new Error(DATA.error);
@@ -347,10 +362,10 @@ function render(){
   document.getElementById("charts").style.display="grid";
   document.getElementById("locCard").style.display="block";
   const s=DATA.summary||{}, conv=n(s.conversion_rate);
-  document.getElementById("sub").textContent="iCart online joins · "+rangeLabel()+(PLANFILTER?(" · "+PLANFILTER+" campaign"):"")+(ACCOUNTFILTER?(" · "+ACCOUNTFILTER):"")+(LOCFILTER.length?(" · "+(LOCFILTER.length===1?(NAMES[LOCFILTER[0]]||("Club "+LOCFILTER[0])):(LOCFILTER.length+" locations"))):"");
+  document.getElementById("sub").textContent="iCart online joins · "+rangeLabel()+(PLANFILTER?(" · "+PLANFILTER+" campaign"):"")+(ACCOUNTFILTER?(" · "+ACCOUNTFILTER):"")+(PLATFILTER?(" · "+({cc:"Credit card",ach:"ACH",kiosk:"Kiosk"}[PLATFILTER]||PLATFILTER)):"")+(LOCFILTER.length?(" · "+(LOCFILTER.length===1?(NAMES[LOCFILTER[0]]||("Club "+LOCFILTER[0])):(LOCFILTER.length+" locations"))):"");
   document.getElementById("kpis").innerHTML=kpiDefs(s).map(k=>`<div class="tile${k.muted?" muted":""}"${k.title?` title="${escAttr(k.title)}"`:""}><div class="label">${k.label}</div><div class="val">${k.val}</div>${SHOWDELTAS?`<div class="delta" id="d_${k.key}"></div>`:""}</div>`).join("");
   if(SHOWDELTAS) applyDeltas();
-  drawLine(); renderPlans(); drawBars(); renderUtms();
+  drawLine(); renderPlans(); drawBars(); renderPlatforms(); renderUtms();
   document.getElementById("foot").textContent="Live from the iCart database · unique-person counts · range "+DATA.from+" to "+DATA.to+".";
 }
 
@@ -359,7 +374,7 @@ async function renderUtms(){
   if(!RANGE){ card.style.display="none"; return; }
   try{
     const hdr={apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"};
-    const r=await fetch(SUPA+"/rest/v1/rpc/report_utms",{method:"POST",headers:hdr,body:JSON.stringify({p_from:RANGE[0],p_to:RANGE[1],p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER})});
+    const r=await fetch(SUPA+"/rest/v1/rpc/report_utms",{method:"POST",headers:hdr,body:JSON.stringify({p_from:RANGE[0],p_to:RANGE[1],p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER,p_platform:PLATFILTER})});
     if(!r.ok) throw new Error("HTTP "+r.status);
     const j=await r.json(), all=(j&&j.rows)||[];
     if(!all.length){ card.style.display="none"; return; }
@@ -369,6 +384,22 @@ async function renderUtms(){
     if(!rows.length){ tb.innerHTML=`<tr><td colspan="9" style="color:var(--muted)">No tagged campaigns in this range.</td></tr>`; return; }
     const lab=v=>(v==="(none)"?'<span style="color:var(--muted)">Untagged</span>':esc(v));
     tb.innerHTML=rows.map(x=>`<tr><td>${lab(x.utm_source)}</td><td>${lab(x.utm_medium)}</td><td>${lab(x.utm_campaign)}</td><td>${lab(x.utm_account)}</td><td>${fmt(x.entries)}</td><td>${fmt(x.joins)}</td><td>${fmt(x.lost_joins)}</td><td>${pct(x.conversion_rate)}</td><td>${money(x.join_contract_value)}</td></tr>`).join("");
+  }catch(e){ card.style.display="none"; }
+}
+
+async function renderPlatforms(){
+  const card=document.getElementById("platCard"), tb=document.querySelector("#platTable tbody");
+  if(!RANGE){ card.style.display="none"; return; }
+  try{
+    const hdr={apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"};
+    const r=await fetch(SUPA+"/rest/v1/rpc/report_platforms",{method:"POST",headers:hdr,body:JSON.stringify({p_from:RANGE[0],p_to:RANGE[1],p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER})});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const rows=await r.json();
+    if(!Array.isArray(rows)||!rows.length){ card.style.display="none"; return; }
+    card.style.display="block";
+    const PLAT={cc:"Credit card",ach:"ACH",kiosk:"Kiosk"};
+    const lab=p=>(p==="(untagged)"?'<span style="color:var(--muted)">Untagged</span>':(PLAT[p]||esc(p)));
+    tb.innerHTML=rows.map(x=>`<tr><td>${lab(x.platform)}</td><td>${fmt(x.entries)}</td><td>${fmt(x.joins)}</td><td>${fmt(x.lost_joins)}</td><td>${pct(x.conversion_rate)}</td><td>${money(x.join_contract_value)}</td></tr>`).join("");
   }catch(e){ card.style.display="none"; }
 }
 
@@ -496,6 +527,10 @@ document.getElementById("account").onchange=(e)=>{
   ACCOUNTFILTER=e.target.value||null;
   if(RANGE) load(RANGE[0],RANGE[1]); else applyPreset();
 };
+document.getElementById("platform").onchange=(e)=>{
+  PLATFILTER=e.target.value||null;
+  if(RANGE) load(RANGE[0],RANGE[1]); else applyPreset();
+};
 document.getElementById("applyBtn").onclick=()=>{ let f=document.getElementById("fromDate").value,t=document.getElementById("toDate").value; if(!f||!t)return; if(f>t){const x=f;f=t;t=x;} load(f,t); };
 document.getElementById("csvBtn").onclick=exportCSV;
 function updateSortIndicators(){
@@ -580,11 +615,11 @@ document.getElementById("sendLink").onclick=async()=>{
 };
 const DETAIL_HEAD=["Checkout ID","Status","Location","Club #","Client","First Name","Last Name","Email","Phone","Plan","Recurring Price","Contract Value","Platform","UTM Source","UTM Medium","UTM Campaign","UTM Term","UTM Content","UTM Account","Lead At","Joined At","Lost At"];
 async function fetchDetailRows(session, from, to){
-  const key=from+"|"+to+"|"+(PLANFILTER||"")+"|"+(ACCOUNTFILTER||"")+"|"+(LOCFILTER.slice().sort().join(","));
+  const key=from+"|"+to+"|"+(PLANFILTER||"")+"|"+(ACCOUNTFILTER||"")+"|"+(PLATFILTER||"")+"|"+(LOCFILTER.slice().sort().join(","));
   if(DETAIL_CACHE && DETAIL_KEY===key) return DETAIL_CACHE;
   const r=await fetch(SUPA+"/rest/v1/rpc/report_detail",{method:"POST",
     headers:{apikey:ANON, Authorization:"Bearer "+session.access_token, "Content-Type":"application/json"},
-    body:JSON.stringify({p_from:from,p_to:to,p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER})});
+    body:JSON.stringify({p_from:from,p_to:to,p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER,p_platform:PLATFILTER})});
   if(r.status===401||r.status===403){ const e=new Error("unauthorized"); e.code=403; throw e; }
   if(!r.ok) throw new Error("HTTP "+r.status);
   const rows=await r.json();
