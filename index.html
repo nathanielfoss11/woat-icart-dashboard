@@ -201,6 +201,13 @@ th[data-sort] .arw{font-size:9px;margin-left:3px;color:var(--blue)}
 #clubCount{color:var(--muted);font-size:12px}
 .utmtoggle{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);margin:0 0 8px;cursor:pointer}
 .utmtoggle input{cursor:pointer}
+/* FIX 2026-08-20: one junk utm_source (a 234-char string with no spaces) was forcing
+   the Source column to ~1650px, blowing the table out to 2342px inside a 1110px card
+   so the other 8 columns rendered off-screen. Only visible on first load, because
+   picking a campaign filtered the offending row out. Cap the four text columns and
+   ellipsis the overflow; the full value stays available as a tooltip. */
+#utmTable{width:100%}
+#utmTable th:nth-child(-n+4),#utmTable td:nth-child(-n+4){max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .msel{position:relative;display:inline-block}
 #locBtn{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .msel-panel{position:absolute;top:calc(100% + 4px);left:0;z-index:30;width:264px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.28);padding:8px;display:none}
@@ -383,7 +390,7 @@ async function renderUtms(){
     card.style.display="block";
     if(!rows.length){ tb.innerHTML=`<tr><td colspan="9" style="color:var(--muted)">No tagged campaigns in this range.</td></tr>`; return; }
     const lab=v=>(v==="(none)"?'<span style="color:var(--muted)">Untagged</span>':esc(v));
-    tb.innerHTML=rows.map(x=>`<tr><td>${lab(x.utm_source)}</td><td>${lab(x.utm_medium)}</td><td>${lab(x.utm_campaign)}</td><td>${lab(x.utm_account)}</td><td>${fmt(x.entries)}</td><td>${fmt(x.joins)}</td><td>${fmt(x.lost_joins)}</td><td>${pct(x.conversion_rate)}</td><td>${money(x.join_contract_value)}</td></tr>`).join("");
+    tb.innerHTML=rows.map(x=>`<tr><td title="${escAttr(x.utm_source)}">${lab(x.utm_source)}</td><td title="${escAttr(x.utm_medium)}">${lab(x.utm_medium)}</td><td title="${escAttr(x.utm_campaign)}">${lab(x.utm_campaign)}</td><td title="${escAttr(x.utm_account)}">${lab(x.utm_account)}</td><td>${fmt(x.entries)}</td><td>${fmt(x.joins)}</td><td>${fmt(x.lost_joins)}</td><td>${pct(x.conversion_rate)}</td><td>${money(x.join_contract_value)}</td></tr>`).join("");
   }catch(e){ card.style.display="none"; }
 }
 
