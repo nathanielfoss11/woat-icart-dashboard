@@ -204,10 +204,10 @@ th[data-sort] .arw{font-size:9px;margin-left:3px;color:var(--blue)}
 /* FIX 2026-08-20: one junk utm_source (a 234-char string with no spaces) was forcing
    the Source column to ~1650px, blowing the table out to 2342px inside a 1110px card
    so the other 8 columns rendered off-screen. Only visible on first load, because
-   picking a campaign filtered the offending row out. Cap the four text columns and
+   picking a campaign filtered the offending row out. Cap the text columns (5 as of the Audience column) and
    ellipsis the overflow; the full value stays available as a tooltip. */
 #utmTable{width:100%}
-#utmTable th:nth-child(-n+4),#utmTable td:nth-child(-n+4){max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#utmTable th:nth-child(-n+5),#utmTable td:nth-child(-n+5){max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .msel{position:relative;display:inline-block}
 #locBtn{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .msel-panel{position:absolute;top:calc(100% + 4px);left:0;z-index:30;width:264px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.28);padding:8px;display:none}
@@ -620,7 +620,7 @@ document.getElementById("sendLink").onclick=async()=>{
   const {error}=await sb.auth.signInWithOtp({email, options:{shouldCreateUser:false, emailRedirectTo:location.origin}});
   authMsg.textContent = error ? ("Couldn’t send: "+error.message) : "Check your email for a login link, then return here.";
 };
-const DETAIL_HEAD=["Checkout ID","Status","Location","Club #","Client","First Name","Last Name","Email","Phone","Plan","Recurring Price","Contract Value","Platform","UTM Source","UTM Medium","UTM Campaign","UTM Term","UTM Content","UTM Account","Lead At","Joined At","Lost At"];
+const DETAIL_HEAD=["Checkout ID","Status","Location","Club #","Client","First Name","Last Name","Email","Phone","Plan","Recurring Price","Contract Value","Platform","UTM Source","UTM Medium","UTM Campaign","UTM Term","UTM Content","UTM Account","UTM Audience","Lead At","Joined At","Lost At"];
 async function fetchDetailRows(session, from, to){
   const key=from+"|"+to+"|"+(PLANFILTER||"")+"|"+(ACCOUNTFILTER||"")+"|"+(PLATFILTER||"")+"|"+(LOCFILTER.slice().sort().join(","));
   if(DETAIL_CACHE && DETAIL_KEY===key) return DETAIL_CACHE;
@@ -635,7 +635,7 @@ async function fetchDetailRows(session, from, to){
 }
 function detailToCSV(rows){
   const lines=[DETAIL_HEAD.join(",")];
-  rows.forEach(x=>lines.push([x.checkout_id,x.status,clubLabel(x.location),x.location,x.club,x.first_name,x.last_name,x.email,x.phone,x.plan,x.recurring_price,x.contract_value,x.platform,x.utm_source,x.utm_medium,x.utm_campaign,x.utm_term,x.utm_content,x.utm_account,x.lead_at,x.joined_at,x.lost_at].map(csvCell).join(",")));
+  rows.forEach(x=>lines.push([x.checkout_id,x.status,clubLabel(x.location),x.location,x.club,x.first_name,x.last_name,x.email,x.phone,x.plan,x.recurring_price,x.contract_value,x.platform,x.utm_source,x.utm_medium,x.utm_campaign,x.utm_term,x.utm_content,x.utm_account,x.utm_audience,x.lead_at,x.joined_at,x.lost_at].map(csvCell).join(",")));
   return lines.join("\n");
 }
 function downloadText(name, text){
