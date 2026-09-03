@@ -667,5 +667,32 @@ window.exportClubPII=exportClubPII;
 sb.auth.onAuthStateChange(()=>refreshAuthUI());
 refreshAuthUI();
 </script>
+<script>
+/* By-promo card — added 2026-09-03 (Sneeze It). Self-contained & additive: reads the promo
+   parsed from the plan name via the report_promos RPC, mirrors the dashboard's active date range,
+   and renders a card right after the Campaign sources (UTM) card. Never touches existing code/auth. */
+(function(){
+ try{
+  if(window.__promoInit) return; window.__promoInit=true;
+  var H=document.documentElement.innerHTML;
+  var U=(H.match(/https:\/\/[a-z0-9]+\.supabase\.co/)||[])[0];
+  var K=(H.match(/eyJ[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+\.[A-Za-z0-9_\-]+/)||[])[0];
+  if(!U||!K||!window.supabase) return;
+  var client=window.supabase.createClient(U,K,{auth:{persistSession:false,autoRefreshToken:false,storageKey:'sb-promo-noauth'}});
+  var cf=null,ct=null,busy=false;
+  function money(v){v=Number(v)||0;return '$'+Math.round(v).toLocaleString();}
+  function num(v){return (Number(v)||0).toLocaleString();}
+  function lab(p){return p==='STANDARD'?'Standard (no promo)':(p||'(no plan)');}
+  function ensureCard(){var uc=document.getElementById('utmCard');if(!uc)return null;var pc=document.getElementById('promoCard');if(!pc){pc=document.createElement('div');pc.id='promoCard';pc.className='card';uc.parentNode.insertBefore(pc,uc.nextSibling);}else if(pc.previousElementSibling!==uc){uc.parentNode.insertBefore(pc,uc.nextSibling);}return pc;}
+  function render(rows){var pc=ensureCard();if(!pc)return;var b='';(rows||[]).forEach(function(r){b+='<tr><td>'+lab(r.promo)+'</td><td style="text-align:right;font-variant-numeric:tabular-nums">'+num(r.entries)+'</td><td style="text-align:right;font-variant-numeric:tabular-nums">'+num(r.joins)+'</td><td style="text-align:right;font-variant-numeric:tabular-nums">'+num(r.lost)+'</td><td style="text-align:right;font-variant-numeric:tabular-nums">'+(Number(r.conversion_rate)||0).toFixed(1)+'%</td><td style="text-align:right;font-variant-numeric:tabular-nums">'+money(r.join_contract_value)+'</td></tr>';});pc.innerHTML='<h2>By promo</h2><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left">Promo</th><th style="text-align:right">Entries</th><th style="text-align:right">Joins</th><th style="text-align:right">Lost</th><th style="text-align:right">Conv.</th><th style="text-align:right">Join value</th></tr></thead><tbody>'+b+'</tbody></table></div><div style="color:var(--muted);font-size:12px;margin-top:8px">Membership promo parsed from the plan name, by unique person for the selected range.</div>';}
+  function load(f,t){if(!f||!t||busy)return;busy=true;client.rpc('report_promos',{p_from:f,p_to:t}).then(function(r){busy=false;if(!r.error&&r.data)render(r.data);}).catch(function(){busy=false;});}
+  var of=window.fetch;
+  window.fetch=function(){try{var a=arguments,u=(a[0]&&a[0].url)||a[0]||'';if(typeof u==='string'&&u.indexOf('/rpc/report_filtered')>=0&&a[1]&&a[1].body){var bd=JSON.parse(a[1].body);var ks=Object.keys(bd);var fk=ks.filter(function(k){return /from/i.test(k);})[0],tk=ks.filter(function(k){return /to/i.test(k);})[0];var f=bd[fk],t=bd[tk];if(f&&t&&(f!==cf||t!==ct)){cf=f;ct=t;setTimeout(function(){load(cf,ct);},350);}}}catch(e){}return of.apply(this,arguments);};
+  try{var w=document.querySelector('.wrap');if(w){new MutationObserver(function(){if(cf&&ct)ensureCard();}).observe(w,{childList:true});}}catch(e){}
+  setTimeout(function(){if(!cf){var d=new Date();var t=new Date(d.getTime()+864e5),f=new Date(d.getTime()-30*864e5);var fmt=function(x){return x.toISOString().slice(0,10);};load(fmt(f),fmt(t));}},2200);
+ }catch(e){}
+})();
+</script>
+
 </body>
 </html>
