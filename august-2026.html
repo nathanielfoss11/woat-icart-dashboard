@@ -1,0 +1,585 @@
+<title>WOA August Report</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#faf8f5; --panel:#ffffff; --panel-2:#f4f1ec; --line:#e7e1d8; --line-strong:#d8d0c4;
+  --ink:#1b1713; --ink-2:#4a443d; --muted:#7a7269;
+  --brand:#c8202e; --brand-ink:#a5121f;
+  --pos:#127a56; --pos-soft:#e4f0ea; --pos-ink:#0e6647;
+  --neg:#b4622a; --neg-soft:#f6ece2; --neg-ink:#94491a;
+  --track:#ece7df;
+  --shadow:0 1px 2px rgba(30,22,12,.04),0 6px 20px rgba(30,22,12,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#15120e; --panel:#1e1a15; --panel-2:#241f19; --line:#332c24; --line-strong:#40382d;
+    --ink:#f3efe8; --ink-2:#cdc5b8; --muted:#9a9084;
+    --brand:#f0616c; --brand-ink:#f0616c;
+    --pos:#4fbf90; --pos-soft:#16281f; --pos-ink:#6fd0a6;
+    --neg:#e0955c; --neg-soft:#2a1f15; --neg-ink:#eaa972;
+    --track:#2b251e;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 26px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#15120e; --panel:#1e1a15; --panel-2:#241f19; --line:#332c24; --line-strong:#40382d;
+  --ink:#f3efe8; --ink-2:#cdc5b8; --muted:#9a9084;
+  --brand:#f0616c; --brand-ink:#f0616c;
+  --pos:#4fbf90; --pos-soft:#16281f; --pos-ink:#6fd0a6;
+  --neg:#e0955c; --neg-soft:#2a1f15; --neg-ink:#eaa972;
+  --track:#2b251e;
+  --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 26px rgba(0,0,0,.35);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;}
+.wrap{max-width:1060px;margin:0 auto;padding:0 24px 96px}
+.mono{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+h1,h2,h3{font-family:"Archivo",system-ui,sans-serif;text-wrap:balance;margin:0}
+a{color:var(--brand-ink)}
+
+/* header */
+header.masthead{border-bottom:2px solid var(--ink);margin-top:40px;padding-bottom:18px}
+.kicker{font-family:"Archivo";text-transform:uppercase;letter-spacing:.16em;font-size:12px;font-weight:700;color:var(--brand);display:flex;align-items:center;gap:10px}
+.kicker::before{content:"";width:26px;height:3px;background:var(--brand);display:inline-block}
+header.masthead h1{font-size:clamp(30px,5vw,46px);font-weight:800;letter-spacing:-.01em;line-height:1.02;margin:14px 0 8px}
+.sub{color:var(--muted);font-size:15px;max-width:60ch}
+.meta{display:flex;flex-wrap:wrap;gap:8px 28px;margin-top:18px;font-size:13px;color:var(--ink-2)}
+.meta b{color:var(--ink);font-weight:600}
+
+section{margin-top:52px}
+.sec-head{display:flex;align-items:baseline;gap:14px;border-bottom:1px solid var(--line-strong);padding-bottom:10px;margin-bottom:22px}
+.sec-head h2{font-size:23px;font-weight:700;letter-spacing:-.01em}
+.sec-head .idx{font-family:"IBM Plex Mono";font-size:13px;color:var(--brand);font-weight:600}
+.sec-head .note{margin-left:auto;font-size:12.5px;color:var(--muted)}
+p.lead{font-size:15.5px;color:var(--ink-2);max-width:70ch;margin:0 0 20px}
+
+/* KPI tiles */
+.tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 18px 16px;box-shadow:var(--shadow)}
+.tile .lab{font-size:11.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:600;font-family:"Archivo"}
+.tile .big{font-family:"IBM Plex Mono";font-weight:600;font-size:30px;letter-spacing:-.02em;margin-top:8px;line-height:1}
+.tile .foot{font-size:12.5px;color:var(--muted);margin-top:7px}
+.tile.accent{border-left:3px solid var(--brand)}
+.tile .big.pos{color:var(--pos-ink)} .tile .big.neg{color:var(--neg-ink)}
+@media(max-width:820px){.tiles{grid-template-columns:repeat(2,1fr)}}
+
+/* conversion bar */
+.convbar{margin-top:6px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:20px;box-shadow:var(--shadow)}
+.convbar .track{display:flex;height:40px;border-radius:8px;overflow:hidden;background:var(--track)}
+.convbar .seg{display:flex;align-items:center;padding:0 12px;color:#fff;font-family:"IBM Plex Mono";font-weight:600;font-size:13px;white-space:nowrap}
+.convbar .seg.join{background:var(--pos)} .convbar .seg.lost{background:var(--neg)}
+.convbar .legend{display:flex;gap:22px;margin-top:14px;font-size:13px;color:var(--ink-2);flex-wrap:wrap}
+.convbar .legend i{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:7px;vertical-align:-1px}
+
+/* generic panel + table */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow);overflow:hidden}
+.tbl-scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+thead th{position:sticky;top:0;background:var(--panel-2);text-align:left;font-family:"Archivo";font-weight:600;
+  font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-2);padding:11px 12px;border-bottom:1px solid var(--line-strong);white-space:nowrap}
+tbody td{padding:9px 12px;border-bottom:1px solid var(--line)}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--panel-2)}
+td.n,th.n{text-align:right;font-family:"IBM Plex Mono";font-variant-numeric:tabular-nums;white-space:nowrap}
+.cnum{font-family:"IBM Plex Mono";color:var(--muted);font-size:12.5px}
+.cname,.pname{font-weight:500}
+.pos-ink{color:var(--pos-ink)} .neg-ink{color:var(--neg-ink)} .muted{color:var(--muted)}
+.scrollcap{max-height:560px;overflow-y:auto}
+tr.other td{background:var(--panel-2);font-style:italic;color:var(--ink-2)}
+
+/* bar chart (html) */
+.chart{display:grid;gap:7px;margin-bottom:6px}
+.bar-row{display:grid;grid-template-columns:150px 1fr 54px;align-items:center;gap:12px}
+.bar-lab{font-size:13px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:right}
+.bar-track{background:var(--track);border-radius:0 5px 5px 0;height:20px;position:relative}
+.bar-fill{height:100%;border-radius:0 5px 5px 0;min-width:3px}
+.bar-fill.pos{background:var(--pos)} .bar-fill.neg{background:var(--neg)}
+.bar-val{font-family:"IBM Plex Mono";font-variant-numeric:tabular-nums;font-size:13.5px;font-weight:600;text-align:right}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+@media(max-width:900px){.two-col{grid-template-columns:1fr} .bar-row{grid-template-columns:120px 1fr 48px} .bar-lab{font-size:12px}}
+
+/* availability */
+table.avail td{vertical-align:top;padding:13px 14px}
+table.avail td.q{font-weight:600;width:230px}
+table.avail td.detail{color:var(--ink-2);font-size:13.5px;line-height:1.5}
+.pill{display:inline-block;font-family:"Archivo";font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:4px 9px;border-radius:999px;white-space:nowrap}
+.pill.ok{background:var(--pos-soft);color:var(--pos-ink)}
+.pill.warn{background:var(--neg-soft);color:var(--neg-ink)}
+.pill.bad{background:#fbe4e4;color:#a5121f}
+:root:not([data-theme="light"]) .pill.bad, :root[data-theme="dark"] .pill.bad{background:#3a1414;color:#f0616c}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]) .pill.bad{background:#3a1414;color:#f0616c}}
+
+/* callout */
+.callout{border:1px solid var(--line-strong);border-left:3px solid var(--brand);background:var(--panel);border-radius:10px;padding:16px 18px;margin-top:18px;box-shadow:var(--shadow)}
+.callout h3{font-size:15px;font-family:"Archivo";font-weight:700;margin-bottom:5px}
+.callout p{margin:0;font-size:13.5px;color:var(--ink-2)}
+
+.subgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:22px}
+@media(max-width:820px){.subgrid{grid-template-columns:1fr}}
+
+footer{margin-top:64px;padding-top:22px;border-top:1px solid var(--line-strong);color:var(--muted);font-size:12.5px}
+footer b{color:var(--ink-2)}
+.foot-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:700px){.foot-grid{grid-template-columns:1fr}}
+h3.blk{font-family:"Archivo";font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-2);margin-bottom:9px}
+.cap{font-size:12px;color:var(--muted);margin:9px 2px 0}
+@media print{
+  body{background:#fff}
+  .scrollcap{max-height:none;overflow:visible}
+  .panel,.tile,.convbar,.callout{box-shadow:none}
+  section{break-inside:avoid}
+}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+<header class="masthead">
+  <div class="kicker">Workout Anytime &middot; Sneeze It</div>
+  <h1>August 2026 Membership &amp; Traffic Report</h1>
+  <p class="sub">Website and iCart traffic from Google Analytics, and completed &amp; incomplete
+  memberships from the iCart join platform &mdash; reconciled to the live dashboard at reports.woat.org.
+  <b>Kiosk-channel joins and leads, and any joins sourced through the Eulerity ad platform, are excluded</b>
+  at the client&rsquo;s request.</p>
+  <div class="meta">
+    <span><b>Period</b> Aug 1 &ndash; Aug 31, 2026 (UTC)</span>
+    <span><b>Membership source</b> iCart / reports.woat.org</span>
+    <span><b>Traffic source</b> GA4 &mdash; Workout Anytime property</span>
+    <span><b>Counting</b> unique people (deduped by email)</span>
+    <span><b>Excludes</b> Kiosk server, Kiosk-named plans &amp; Eulerity-sourced joins</span>
+  </div>
+</header>
+
+<!-- EXEC SUMMARY -->
+<section>
+  <div class="sec-head"><span class="idx">01</span><h2>The month at a glance</h2>
+    <span class="note">All member figures = unique people</span></div>
+  <div class="tiles">
+    <div class="tile accent"><div class="lab">Completed memberships</div><div class="big pos">3,025</div><div class="foot">enrollments finished in August</div></div>
+    <div class="tile"><div class="lab">Membership value</div><div class="big">$734,775</div><div class="foot">total contract value, joined</div></div>
+    <div class="tile"><div class="lab">Conversion rate</div><div class="big">44.1%</div><div class="foot">3,025 of 6,857 checkouts</div></div>
+    <div class="tile"><div class="lab">Checkout entries</div><div class="big">6,857</div><div class="foot">unique people who started a join</div></div>
+  </div>
+  <div class="tiles" style="margin-top:14px">
+    <div class="tile"><div class="lab">Incomplete joins</div><div class="big neg">3,832</div><div class="foot">started but did not finish</div></div>
+    <div class="tile"><div class="lab">Value left on the table</div><div class="big">$991,490</div><div class="foot">contract value of incompletes</div></div>
+    <div class="tile"><div class="lab">Avg. contract (joined)</div><div class="big">$243.71</div><div class="foot">per completed membership</div></div>
+    <div class="tile"><div class="lab">Avg. recurring price</div><div class="big">$16.63</div><div class="foot">biweekly dues, joined</div></div>
+  </div>
+
+  <div class="convbar" style="margin-top:20px">
+    <div class="track">
+      <div class="seg join" style="width:44.12%">3,025 joined</div>
+      <div class="seg lost" style="width:55.88%">3,832 incomplete</div>
+    </div>
+    <div class="legend">
+      <span><i style="background:var(--pos)"></i>Completed memberships &mdash; 44.1% of entries</span>
+      <span><i style="background:var(--neg)"></i>Incomplete joins &mdash; 55.9% of entries</span>
+      <span class="muted">Base: 6,857 unique checkout entries</span>
+    </div>
+  </div>
+
+  <h3 class="blk" style="margin-top:34px">Advertising spend &amp; cost per acquisition</h3>
+  <div class="tiles">
+    <div class="tile accent"><div class="lab">August ad spend</div><div class="big">$26,849.67</div><div class="foot">Meta + Google + OTT combined</div></div>
+    <div class="tile"><div class="lab">Cost per acquisition</div><div class="big pos">$8.88</div><div class="foot">spend &divide; 3,025 completed joins</div></div>
+    <div class="tile"><div class="lab">Acquisitions (base)</div><div class="big">3,025</div><div class="foot">completed memberships, all clubs</div></div>
+    <div class="tile"><div class="lab">Contract value / ad $</div><div class="big">$27.37</div><div class="foot">$734,775 value &divide; spend</div></div>
+  </div>
+  <div class="two-col" style="margin-top:18px">
+    <div class="panel tbl-scroll">
+      <table>
+        <thead><tr><th>Channel</th><th class="n">Spend</th><th class="n">Share</th></tr></thead>
+        <tbody><tr><td class='pname'>Meta</td><td class='n'>$14,819.67</td><td class='n muted'>55.2%</td></tr>
+<tr><td class='pname'>Google (incl. YouTube)</td><td class='n'>$9,030.00</td><td class='n muted'>33.6%</td></tr>
+<tr><td class='pname'>OTT / Connected TV</td><td class='n'>$3,000.00</td><td class='n muted'>11.2%</td></tr><tr class='other'><td class='pname'>Total advertising spend</td><td class='n'>$26,849.67</td><td class='n muted'>100.0%</td></tr></tbody>
+      </table>
+    </div>
+    <div class="callout" style="margin-top:0">
+      <h3>How CPA is calculated</h3>
+      <p>Blended cost per acquisition = <b>$26,849.67</b> total August spend across all three channels,
+      divided by <b>3,025</b> completed memberships across every location in the corporate campaign
+      (kiosk excluded) = <b>$8.88</b> per join. This is a <b>blended</b> figure &mdash; total spend over
+      total joins &mdash; not a per-channel attributed CPA, since individual joins are not tied back to a specific
+      ad channel. Including kiosk joins (3,351) would lower it to $8.01.</p>
+    </div>
+  </div>
+</section>
+
+<!-- TRAFFIC -->
+<section>
+  <div class="sec-head"><span class="idx">02</span><h2>Website &amp; iCart traffic</h2>
+    <span class="note">GA4 &middot; Total users &middot; Aug 2026</span></div>
+  <p class="lead">Unique users from Google Analytics &mdash; the website analytics figure, not ad-platform clicks or
+  landing-page activity. Both the corporate site and iCart report into one GA4 property.</p>
+  <div class="subgrid">
+    <div class="tile accent"><div class="lab">Corporate website</div><div class="big">344,437</div><div class="foot">unique users on workoutanytime.com<br>(+16,350 on www. subdomain)</div></div>
+    <div class="tile accent"><div class="lab">iCart</div><div class="big">158,992</div><div class="foot">unique users on woat.org checkout sites</div></div>
+    <div class="tile"><div class="lab">Corporate &rarr; iCart</div><div class="big neg">0</div><div class="foot">not measurable &mdash; see note below</div></div>
+  </div>
+  <div class="panel tbl-scroll">
+    <table>
+      <thead><tr><th>Hostname</th><th>Role</th><th class="n">Total users</th><th class="n">Active users</th><th class="n">New users</th></tr></thead>
+      <tbody>
+        <tr><td class="cname">workoutanytime.com</td><td class="muted">Corporate site</td><td class="n">344,437</td><td class="n">341,792</td><td class="n">335,566</td></tr>
+        <tr><td class="cname">www.workoutanytime.com</td><td class="muted">Corporate site</td><td class="n">16,350</td><td class="n">16,205</td><td class="n">5,664</td></tr>
+        <tr><td class="cname">www.woat.org</td><td class="muted">iCart (call-center)</td><td class="n">131,304</td><td class="n">130,884</td><td class="n">128,494</td></tr>
+        <tr><td class="cname">ach.woat.org</td><td class="muted">iCart (ACH)</td><td class="n">27,688</td><td class="n">27,609</td><td class="n">26,300</td></tr>
+        <tr class="other"><td class="cname">Property total (all hosts, deduped)</td><td></td><td class="n">516,489</td><td class="n">513,770</td><td class="n">505,695</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="cap">Careers/hiring subdomains (*.careerplug.com, ~7K users) and the in-club kiosk host (kiosk.woat.org) are excluded as non-membership / non-online traffic. “Total users” = unique users who triggered any event; it is the truest “unique visitors” figure and is not sessions or pageviews.</p>
+
+  <div class="callout">
+    <h3>Cross-domain journey (corporate &rarr; iCart): not measurable as configured</h3>
+    <p>A GA4 funnel of corporate-site users who then reach iCart returns <b>0</b> for August. Both sites tag into the
+    same property, but the GA user identity is not carried across the workoutanytime.com &rarr; woat.org handoff, so the
+    same person is counted as two separate users. Answering “how many moved from the website into iCart” requires
+    turning on cross-domain measurement (and matching UTM pass-through) between the two domains.</p>
+  </div>
+</section>
+
+<!-- DATA AVAILABILITY -->
+<section>
+  <div class="sec-head"><span class="idx">03</span><h2>What we can confirm &mdash; point by point</h2>
+    <span class="note">Response to the media team’s request</span></div>
+  <div class="panel tbl-scroll">
+    <table class="avail">
+      <thead><tr><th>Requested</th><th>Status</th><th>Detail</th></tr></thead>
+      <tbody><tr><td class='q'>Unique visitors — WOA corporate website</td><td><span class='pill ok'>Available (GA4)</span></td><td class='detail'><b>344,437</b> unique users on workoutanytime.com (+16,350 on www. subdomain). Source: GA4 web analytics, not ad platforms.</td></tr>
+<tr><td class='q'>Unique visitors — iCart</td><td><span class='pill ok'>Available (GA4)</span></td><td class='detail'><b>158,992</b> unique users across woat.org checkout sites (www.woat.org 131,304 + ach.woat.org 27,688).</td></tr>
+<tr><td class='q'>Users who moved corporate &rarr; iCart (cross-domain)</td><td><span class='pill bad'>Not measurable today</span></td><td class='detail'>GA4 records <b>0</b> users progressing from the corporate site into iCart. Both sites report to one GA4 property, but user identity is <b>not carried across the domain handoff</b> (no cross-domain measurement configured), so the same person is counted separately on each site. Requires implementing cross-domain tracking to answer.</td></tr>
+<tr><td class='q'>Exact metric definition</td><td><span class='pill ok'>Confirmed</span></td><td class='detail'>Figures above are GA4 <b>Total users</b> — the count of unique users who triggered any event (the truest “unique visitors”). GA4’s headline “Users” is <b>Active users</b> (513,770 property-wide); <b>New users</b> 505,695. These are users, not sessions or pageviews.</td></tr>
+<tr><td class='q'>Tracking configured across both sites</td><td><span class='pill warn'>Partial</span></td><td class='detail'>Both the corporate site and iCart are tagged and reporting into one GA4 property, so each site’s traffic is measured. What is <b>not</b> configured is cross-domain identity stitching between them — so per-site totals are reliable, but the corporate&rarr;iCart journey is not.</td></tr>
+<tr><td class='q'>Meta / Google purchase event = completed enrollment?</td><td><span class='pill warn'>Confirm at pixel</span></td><td class='detail'>In our system the purchase/join event corresponds to a <b>completed enrollment</b> (status “joined”) — that is what the 3,025 memberships below count. Recommend confirming the Meta &amp; Google pixels fire on the iCart confirmation step so their “Purchase” conversion equals a completed membership (not a started checkout).</td></tr>
+<tr><td class='q'>Authoritative completed memberships, by club</td><td><span class='pill ok'>Available (iCart)</span></td><td class='detail'><b>3,025</b> completed August memberships across 191 clubs — full breakdown below. Sourced from the iCart membership database (reports.woat.org).</td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- MEMBERSHIPS -->
+<section>
+  <div class="sec-head"><span class="idx">04</span><h2>Completed memberships by club</h2>
+    <span class="note">3,025 joins &middot; 191 clubs</span></div>
+  <p class="lead">Every club with August activity, counted by unique person and reconciled to reports.woat.org.
+  The chart shows the fifteen clubs with the most completed memberships; the full table follows.</p>
+  <h3 class="blk">Top 15 clubs &mdash; completed memberships</h3>
+  <div class="chart"><div class="bar-row"><div class="bar-lab" title="Somerset">Somerset</div><div class="bar-track"><div class="bar-fill pos" style="width:100.00%"></div></div><div class="bar-val">238</div></div>
+<div class="bar-row"><div class="bar-lab" title="Lafayette TN">Lafayette TN</div><div class="bar-track"><div class="bar-fill pos" style="width:26.47%"></div></div><div class="bar-val">63</div></div>
+<div class="bar-row"><div class="bar-lab" title="Homestead">Homestead</div><div class="bar-track"><div class="bar-fill pos" style="width:25.63%"></div></div><div class="bar-val">61</div></div>
+<div class="bar-row"><div class="bar-lab" title="Yadkinville">Yadkinville</div><div class="bar-track"><div class="bar-fill pos" style="width:18.91%"></div></div><div class="bar-val">45</div></div>
+<div class="bar-row"><div class="bar-lab" title="Roebuck">Roebuck</div><div class="bar-track"><div class="bar-fill pos" style="width:18.07%"></div></div><div class="bar-val">43</div></div>
+<div class="bar-row"><div class="bar-lab" title="Radford-Fairlawn">Radford-Fairlawn</div><div class="bar-track"><div class="bar-fill pos" style="width:16.81%"></div></div><div class="bar-val">40</div></div>
+<div class="bar-row"><div class="bar-lab" title="Erwin">Erwin</div><div class="bar-track"><div class="bar-fill pos" style="width:15.97%"></div></div><div class="bar-val">38</div></div>
+<div class="bar-row"><div class="bar-lab" title="Irondale">Irondale</div><div class="bar-track"><div class="bar-fill pos" style="width:15.55%"></div></div><div class="bar-val">37</div></div>
+<div class="bar-row"><div class="bar-lab" title="Cascade">Cascade</div><div class="bar-track"><div class="bar-fill pos" style="width:15.13%"></div></div><div class="bar-val">36</div></div>
+<div class="bar-row"><div class="bar-lab" title="Sevierville">Sevierville</div><div class="bar-track"><div class="bar-fill pos" style="width:14.71%"></div></div><div class="bar-val">35</div></div>
+<div class="bar-row"><div class="bar-lab" title="Hiram">Hiram</div><div class="bar-track"><div class="bar-fill pos" style="width:14.29%"></div></div><div class="bar-val">34</div></div>
+<div class="bar-row"><div class="bar-lab" title="Ocala">Ocala</div><div class="bar-track"><div class="bar-fill pos" style="width:13.87%"></div></div><div class="bar-val">33</div></div>
+<div class="bar-row"><div class="bar-lab" title="East Ridge TN">East Ridge TN</div><div class="bar-track"><div class="bar-fill pos" style="width:13.87%"></div></div><div class="bar-val">33</div></div>
+<div class="bar-row"><div class="bar-lab" title="Thomson">Thomson</div><div class="bar-track"><div class="bar-fill pos" style="width:13.45%"></div></div><div class="bar-val">32</div></div>
+<div class="bar-row"><div class="bar-lab" title="Kettering">Kettering</div><div class="bar-track"><div class="bar-fill pos" style="width:13.45%"></div></div><div class="bar-val">32</div></div></div>
+  <div class="panel" style="margin-top:20px">
+    <div class="scrollcap tbl-scroll">
+      <table>
+        <thead><tr><th>Club</th><th>Location</th><th class="n">Joins</th><th class="n">Incomplete</th><th class="n">Entries</th><th class="n">Join value</th><th class="n">Avg contract</th><th class="n">Value at stake</th></tr></thead>
+        <tbody><tr><td class='cnum'>70061</td><td class='cname'>Somerset</td><td class='n pos-ink'>238</td><td class='n neg-ink'>95</td><td class='n'>333</td><td class='n'>$12,850</td><td class='n'>$54</td><td class='n muted'>$5,129</td></tr>
+<tr><td class='cnum'>70059</td><td class='cname'>Lafayette TN</td><td class='n pos-ink'>63</td><td class='n neg-ink'>63</td><td class='n'>126</td><td class='n'>$49,864</td><td class='n'>$791</td><td class='n muted'>$49,864</td></tr>
+<tr><td class='cnum'>5616</td><td class='cname'>Homestead</td><td class='n pos-ink'>61</td><td class='n neg-ink'>133</td><td class='n'>194</td><td class='n'>$31,738</td><td class='n'>$520</td><td class='n muted'>$74,753</td></tr>
+<tr><td class='cnum'>70057</td><td class='cname'>Yadkinville</td><td class='n pos-ink'>45</td><td class='n neg-ink'>48</td><td class='n'>93</td><td class='n'>$25,809</td><td class='n'>$574</td><td class='n muted'>$29,515</td></tr>
+<tr><td class='cnum'>70056</td><td class='cname'>Roebuck</td><td class='n pos-ink'>43</td><td class='n neg-ink'>29</td><td class='n'>72</td><td class='n'>$14,792</td><td class='n'>$344</td><td class='n muted'>$10,722</td></tr>
+<tr><td class='cnum'>70035</td><td class='cname'>Radford-Fairlawn</td><td class='n pos-ink'>40</td><td class='n neg-ink'>24</td><td class='n'>64</td><td class='n'>$17,727</td><td class='n'>$443</td><td class='n muted'>$14,567</td></tr>
+<tr><td class='cnum'>70060</td><td class='cname'>Erwin</td><td class='n pos-ink'>38</td><td class='n neg-ink'>10</td><td class='n'>48</td><td class='n'>$10,647</td><td class='n'>$280</td><td class='n muted'>$3,316</td></tr>
+<tr><td class='cnum'>70040</td><td class='cname'>Irondale</td><td class='n pos-ink'>37</td><td class='n neg-ink'>21</td><td class='n'>58</td><td class='n'>$10,640</td><td class='n'>$288</td><td class='n muted'>$6,269</td></tr>
+<tr><td class='cnum'>6309</td><td class='cname'>Cascade</td><td class='n pos-ink'>36</td><td class='n neg-ink'>37</td><td class='n'>73</td><td class='n'>$3,517</td><td class='n'>$98</td><td class='n muted'>$3,964</td></tr>
+<tr><td class='cnum'>6314</td><td class='cname'>Sevierville</td><td class='n pos-ink'>35</td><td class='n neg-ink'>38</td><td class='n'>73</td><td class='n'>$2,889</td><td class='n'>$83</td><td class='n muted'>$3,217</td></tr>
+<tr><td class='cnum'>6652</td><td class='cname'>Hiram</td><td class='n pos-ink'>34</td><td class='n neg-ink'>27</td><td class='n'>61</td><td class='n'>$2,901</td><td class='n'>$85</td><td class='n muted'>$3,054</td></tr>
+<tr><td class='cnum'>70053</td><td class='cname'>Ocala</td><td class='n pos-ink'>33</td><td class='n neg-ink'>88</td><td class='n'>121</td><td class='n'>$4,212</td><td class='n'>$128</td><td class='n muted'>$11,051</td></tr>
+<tr><td class='cnum'>70001</td><td class='cname'>East Ridge TN</td><td class='n pos-ink'>33</td><td class='n neg-ink'>21</td><td class='n'>54</td><td class='n'>$12,623</td><td class='n'>$383</td><td class='n muted'>$6,735</td></tr>
+<tr><td class='cnum'>70048</td><td class='cname'>Thomson</td><td class='n pos-ink'>32</td><td class='n neg-ink'>25</td><td class='n'>57</td><td class='n'>$6,789</td><td class='n'>$212</td><td class='n muted'>$3,973</td></tr>
+<tr><td class='cnum'>5937</td><td class='cname'>Kettering</td><td class='n pos-ink'>32</td><td class='n neg-ink'>19</td><td class='n'>51</td><td class='n'>$4,010</td><td class='n'>$125</td><td class='n muted'>$1,911</td></tr>
+<tr><td class='cnum'>6674</td><td class='cname'>Buckhead GA</td><td class='n pos-ink'>31</td><td class='n neg-ink'>30</td><td class='n'>61</td><td class='n'>$2,077</td><td class='n'>$67</td><td class='n muted'>$2,052</td></tr>
+<tr><td class='cnum'>6688</td><td class='cname'>North Shore</td><td class='n pos-ink'>31</td><td class='n neg-ink'>19</td><td class='n'>50</td><td class='n'>$10,171</td><td class='n'>$328</td><td class='n muted'>$5,519</td></tr>
+<tr><td class='cnum'>5626</td><td class='cname'>Princeton TX</td><td class='n pos-ink'>30</td><td class='n neg-ink'>28</td><td class='n'>58</td><td class='n'>$8,803</td><td class='n'>$293</td><td class='n muted'>$9,510</td></tr>
+<tr><td class='cnum'>5652</td><td class='cname'>Covington</td><td class='n pos-ink'>28</td><td class='n neg-ink'>32</td><td class='n'>60</td><td class='n'>$2,615</td><td class='n'>$93</td><td class='n muted'>$3,136</td></tr>
+<tr><td class='cnum'>70016</td><td class='cname'>South Fayetteville</td><td class='n pos-ink'>28</td><td class='n neg-ink'>20</td><td class='n'>48</td><td class='n'>$5,186</td><td class='n'>$185</td><td class='n muted'>$3,351</td></tr>
+<tr><td class='cnum'>70012</td><td class='cname'>MT Airy</td><td class='n pos-ink'>28</td><td class='n neg-ink'>9</td><td class='n'>37</td><td class='n'>$19,467</td><td class='n'>$695</td><td class='n muted'>$5,209</td></tr>
+<tr><td class='cnum'>70038</td><td class='cname'>Hartwell</td><td class='n pos-ink'>27</td><td class='n neg-ink'>21</td><td class='n'>48</td><td class='n'>$2,134</td><td class='n'>$79</td><td class='n muted'>$1,685</td></tr>
+<tr><td class='cnum'>70032</td><td class='cname'>Columbia TN</td><td class='n pos-ink'>27</td><td class='n neg-ink'>14</td><td class='n'>41</td><td class='n'>$12,790</td><td class='n'>$474</td><td class='n muted'>$5,237</td></tr>
+<tr><td class='cnum'>6398</td><td class='cname'>Madisonville</td><td class='n pos-ink'>26</td><td class='n neg-ink'>43</td><td class='n'>69</td><td class='n'>$3,057</td><td class='n'>$118</td><td class='n muted'>$4,486</td></tr>
+<tr><td class='cnum'>5938</td><td class='cname'>Lawrenceburg KY</td><td class='n pos-ink'>25</td><td class='n neg-ink'>18</td><td class='n'>43</td><td class='n'>$5,152</td><td class='n'>$206</td><td class='n muted'>$3,105</td></tr>
+<tr><td class='cnum'>6682</td><td class='cname'>Hixson</td><td class='n pos-ink'>24</td><td class='n neg-ink'>27</td><td class='n'>51</td><td class='n'>$8,760</td><td class='n'>$365</td><td class='n muted'>$9,924</td></tr>
+<tr><td class='cnum'>70051</td><td class='cname'>Freeport</td><td class='n pos-ink'>23</td><td class='n neg-ink'>44</td><td class='n'>67</td><td class='n'>$6,023</td><td class='n'>$262</td><td class='n muted'>$13,555</td></tr>
+<tr><td class='cnum'>70000</td><td class='cname'>Hickory</td><td class='n pos-ink'>23</td><td class='n neg-ink'>21</td><td class='n'>44</td><td class='n'>$13,919</td><td class='n'>$605</td><td class='n muted'>$12,649</td></tr>
+<tr><td class='cnum'>5698</td><td class='cname'>Lovejoy</td><td class='n pos-ink'>22</td><td class='n neg-ink'>39</td><td class='n'>61</td><td class='n'>$2,076</td><td class='n'>$94</td><td class='n muted'>$4,280</td></tr>
+<tr><td class='cnum'>70013</td><td class='cname'>Jefferson City</td><td class='n pos-ink'>22</td><td class='n neg-ink'>24</td><td class='n'>46</td><td class='n'>$8,818</td><td class='n'>$401</td><td class='n muted'>$8,179</td></tr>
+<tr><td class='cnum'>6325</td><td class='cname'>Town Center</td><td class='n pos-ink'>22</td><td class='n neg-ink'>20</td><td class='n'>42</td><td class='n'>$1,535</td><td class='n'>$70</td><td class='n muted'>$2,284</td></tr>
+<tr><td class='cnum'>6388</td><td class='cname'>Marietta South</td><td class='n pos-ink'>22</td><td class='n neg-ink'>14</td><td class='n'>36</td><td class='n'>$1,448</td><td class='n'>$66</td><td class='n muted'>$1,229</td></tr>
+<tr><td class='cnum'>6687</td><td class='cname'>Marietta</td><td class='n pos-ink'>21</td><td class='n neg-ink'>26</td><td class='n'>47</td><td class='n'>$1,839</td><td class='n'>$88</td><td class='n muted'>$2,690</td></tr>
+<tr><td class='cnum'>5689</td><td class='cname'>Duncan</td><td class='n pos-ink'>21</td><td class='n neg-ink'>26</td><td class='n'>47</td><td class='n'>$5,440</td><td class='n'>$259</td><td class='n muted'>$6,115</td></tr>
+<tr><td class='cnum'>5608</td><td class='cname'>Elizabethton</td><td class='n pos-ink'>21</td><td class='n neg-ink'>25</td><td class='n'>46</td><td class='n'>$4,520</td><td class='n'>$215</td><td class='n muted'>$7,240</td></tr>
+<tr><td class='cnum'>5678</td><td class='cname'>Winder</td><td class='n pos-ink'>21</td><td class='n neg-ink'>16</td><td class='n'>37</td><td class='n'>$2,195</td><td class='n'>$105</td><td class='n muted'>$1,814</td></tr>
+<tr><td class='cnum'>5930</td><td class='cname'>East Rochester</td><td class='n pos-ink'>21</td><td class='n neg-ink'>14</td><td class='n'>35</td><td class='n'>$2,114</td><td class='n'>$101</td><td class='n muted'>$1,405</td></tr>
+<tr><td class='cnum'>70055</td><td class='cname'>Roane County</td><td class='n pos-ink'>21</td><td class='n neg-ink'>10</td><td class='n'>31</td><td class='n'>$5,189</td><td class='n'>$247</td><td class='n muted'>$2,899</td></tr>
+<tr><td class='cnum'>70043</td><td class='cname'>Clanton</td><td class='n pos-ink'>20</td><td class='n neg-ink'>38</td><td class='n'>58</td><td class='n'>$2,270</td><td class='n'>$113</td><td class='n muted'>$6,203</td></tr>
+<tr><td class='cnum'>6677</td><td class='cname'>Cookeville</td><td class='n pos-ink'>20</td><td class='n neg-ink'>25</td><td class='n'>45</td><td class='n'>$8,248</td><td class='n'>$412</td><td class='n muted'>$9,279</td></tr>
+<tr><td class='cnum'>70049</td><td class='cname'>Thomasville</td><td class='n pos-ink'>20</td><td class='n neg-ink'>23</td><td class='n'>43</td><td class='n'>$9,685</td><td class='n'>$484</td><td class='n muted'>$10,768</td></tr>
+<tr><td class='cnum'>5658</td><td class='cname'>Florence</td><td class='n pos-ink'>20</td><td class='n neg-ink'>8</td><td class='n'>28</td><td class='n'>$1,482</td><td class='n'>$74</td><td class='n muted'>$576</td></tr>
+<tr><td class='cnum'>6346</td><td class='cname'>Ft Walton Beach</td><td class='n pos-ink'>19</td><td class='n neg-ink'>28</td><td class='n'>47</td><td class='n'>$4,442</td><td class='n'>$234</td><td class='n muted'>$4,546</td></tr>
+<tr><td class='cnum'>6983</td><td class='cname'>Cary</td><td class='n pos-ink'>19</td><td class='n neg-ink'>14</td><td class='n'>33</td><td class='n'>$5,590</td><td class='n'>$294</td><td class='n muted'>$3,361</td></tr>
+<tr><td class='cnum'>6683</td><td class='cname'>Kennesaw</td><td class='n pos-ink'>19</td><td class='n neg-ink'>14</td><td class='n'>33</td><td class='n'>$1,627</td><td class='n'>$86</td><td class='n muted'>$1,369</td></tr>
+<tr><td class='cnum'>70015</td><td class='cname'>North Ocala</td><td class='n pos-ink'>18</td><td class='n neg-ink'>39</td><td class='n'>57</td><td class='n'>$4,465</td><td class='n'>$248</td><td class='n muted'>$5,965</td></tr>
+<tr><td class='cnum'>6369</td><td class='cname'>Ellenwood</td><td class='n pos-ink'>18</td><td class='n neg-ink'>35</td><td class='n'>53</td><td class='n'>$1,804</td><td class='n'>$100</td><td class='n muted'>$3,370</td></tr>
+<tr><td class='cnum'>5647</td><td class='cname'>Niceville</td><td class='n pos-ink'>18</td><td class='n neg-ink'>32</td><td class='n'>50</td><td class='n'>$2,959</td><td class='n'>$164</td><td class='n muted'>$4,906</td></tr>
+<tr><td class='cnum'>6680</td><td class='cname'>Decatur</td><td class='n pos-ink'>18</td><td class='n neg-ink'>25</td><td class='n'>43</td><td class='n'>$1,621</td><td class='n'>$90</td><td class='n muted'>$2,657</td></tr>
+<tr><td class='cnum'>70044</td><td class='cname'>Dallas NC</td><td class='n pos-ink'>18</td><td class='n neg-ink'>25</td><td class='n'>43</td><td class='n'>$9,120</td><td class='n'>$507</td><td class='n muted'>$14,582</td></tr>
+<tr><td class='cnum'>6384</td><td class='cname'>Indian Trail</td><td class='n pos-ink'>18</td><td class='n neg-ink'>19</td><td class='n'>37</td><td class='n'>$5,798</td><td class='n'>$322</td><td class='n muted'>$6,128</td></tr>
+<tr><td class='cnum'>5654</td><td class='cname'>Palm Bay</td><td class='n pos-ink'>18</td><td class='n neg-ink'>18</td><td class='n'>36</td><td class='n'>$6,661</td><td class='n'>$370</td><td class='n muted'>$6,681</td></tr>
+<tr><td class='cnum'>6998</td><td class='cname'>Greenwood Square</td><td class='n pos-ink'>18</td><td class='n neg-ink'>15</td><td class='n'>33</td><td class='n'>$1,521</td><td class='n'>$84</td><td class='n muted'>$1,250</td></tr>
+<tr><td class='cnum'>70031</td><td class='cname'>Mocksville</td><td class='n pos-ink'>18</td><td class='n neg-ink'>12</td><td class='n'>30</td><td class='n'>$6,314</td><td class='n'>$351</td><td class='n muted'>$5,370</td></tr>
+<tr><td class='cnum'>6330</td><td class='cname'>Destin</td><td class='n pos-ink'>17</td><td class='n neg-ink'>27</td><td class='n'>44</td><td class='n'>$3,094</td><td class='n'>$182</td><td class='n muted'>$4,424</td></tr>
+<tr><td class='cnum'>6655</td><td class='cname'>Douglasville</td><td class='n pos-ink'>17</td><td class='n neg-ink'>25</td><td class='n'>42</td><td class='n'>$1,294</td><td class='n'>$76</td><td class='n muted'>$2,315</td></tr>
+<tr><td class='cnum'>5637</td><td class='cname'>Gallatin</td><td class='n pos-ink'>17</td><td class='n neg-ink'>25</td><td class='n'>42</td><td class='n'>$1,659</td><td class='n'>$98</td><td class='n muted'>$3,474</td></tr>
+<tr><td class='cnum'>6372</td><td class='cname'>Jacksonville</td><td class='n pos-ink'>17</td><td class='n neg-ink'>25</td><td class='n'>42</td><td class='n'>$1,690</td><td class='n'>$99</td><td class='n muted'>$2,949</td></tr>
+<tr><td class='cnum'>6374</td><td class='cname'>Locust Grove</td><td class='n pos-ink'>17</td><td class='n neg-ink'>22</td><td class='n'>39</td><td class='n'>$2,205</td><td class='n'>$130</td><td class='n muted'>$2,514</td></tr>
+<tr><td class='cnum'>6691</td><td class='cname'>Powell</td><td class='n pos-ink'>17</td><td class='n neg-ink'>19</td><td class='n'>36</td><td class='n'>$5,445</td><td class='n'>$320</td><td class='n muted'>$5,049</td></tr>
+<tr><td class='cnum'>5686</td><td class='cname'>Dayton TN</td><td class='n pos-ink'>17</td><td class='n neg-ink'>19</td><td class='n'>36</td><td class='n'>$6,357</td><td class='n'>$374</td><td class='n muted'>$6,230</td></tr>
+<tr><td class='cnum'>70047</td><td class='cname'>Pensacola</td><td class='n pos-ink'>17</td><td class='n neg-ink'>15</td><td class='n'>32</td><td class='n'>$5,974</td><td class='n'>$351</td><td class='n muted'>$4,554</td></tr>
+<tr><td class='cnum'>5405</td><td class='cname'>Portland Downtown</td><td class='n pos-ink'>16</td><td class='n neg-ink'>27</td><td class='n'>43</td><td class='n'>$2,281</td><td class='n'>$143</td><td class='n muted'>$3,878</td></tr>
+<tr><td class='cnum'>6695</td><td class='cname'>Smyrna</td><td class='n pos-ink'>16</td><td class='n neg-ink'>21</td><td class='n'>37</td><td class='n'>$5,500</td><td class='n'>$344</td><td class='n muted'>$7,180</td></tr>
+<tr><td class='cnum'>6702</td><td class='cname'>Spring Hill</td><td class='n pos-ink'>16</td><td class='n neg-ink'>20</td><td class='n'>36</td><td class='n'>$5,457</td><td class='n'>$341</td><td class='n muted'>$5,852</td></tr>
+<tr><td class='cnum'>5693</td><td class='cname'>Smithfield</td><td class='n pos-ink'>16</td><td class='n neg-ink'>20</td><td class='n'>36</td><td class='n'>$1,588</td><td class='n'>$99</td><td class='n muted'>$2,332</td></tr>
+<tr><td class='cnum'>6364</td><td class='cname'>N Greenville</td><td class='n pos-ink'>16</td><td class='n neg-ink'>15</td><td class='n'>31</td><td class='n'>$1,884</td><td class='n'>$118</td><td class='n muted'>$2,214</td></tr>
+<tr><td class='cnum'>70046</td><td class='cname'>Englewood</td><td class='n pos-ink'>16</td><td class='n neg-ink'>15</td><td class='n'>31</td><td class='n'>$7,352</td><td class='n'>$460</td><td class='n muted'>$3,359</td></tr>
+<tr><td class='cnum'>6675</td><td class='cname'>Cleveland</td><td class='n pos-ink'>16</td><td class='n neg-ink'>15</td><td class='n'>31</td><td class='n'>$3,550</td><td class='n'>$222</td><td class='n muted'>$3,339</td></tr>
+<tr><td class='cnum'>2146</td><td class='cname'>Hendersonville</td><td class='n pos-ink'>16</td><td class='n neg-ink'>13</td><td class='n'>29</td><td class='n'>$2,791</td><td class='n'>$174</td><td class='n muted'>$1,487</td></tr>
+<tr><td class='cnum'>5619</td><td class='cname'>Boiling Springs</td><td class='n pos-ink'>15</td><td class='n neg-ink'>49</td><td class='n'>64</td><td class='n'>$4,145</td><td class='n'>$276</td><td class='n muted'>$11,979</td></tr>
+<tr><td class='cnum'>3626</td><td class='cname'>Lynchburg</td><td class='n pos-ink'>15</td><td class='n neg-ink'>26</td><td class='n'>41</td><td class='n'>$5,235</td><td class='n'>$349</td><td class='n muted'>$9,420</td></tr>
+<tr><td class='cnum'>5636</td><td class='cname'>Weaverville</td><td class='n pos-ink'>15</td><td class='n neg-ink'>25</td><td class='n'>40</td><td class='n'>$4,849</td><td class='n'>$323</td><td class='n muted'>$8,147</td></tr>
+<tr><td class='cnum'>5386</td><td class='cname'>Athens AL</td><td class='n pos-ink'>15</td><td class='n neg-ink'>19</td><td class='n'>34</td><td class='n'>$5,509</td><td class='n'>$367</td><td class='n muted'>$5,626</td></tr>
+<tr><td class='cnum'>70054</td><td class='cname'>Gainesville GA</td><td class='n pos-ink'>15</td><td class='n neg-ink'>16</td><td class='n'>31</td><td class='n'>$3,472</td><td class='n'>$231</td><td class='n muted'>$3,348</td></tr>
+<tr><td class='cnum'>70018</td><td class='cname'>West View</td><td class='n pos-ink'>15</td><td class='n neg-ink'>15</td><td class='n'>30</td><td class='n'>$1,634</td><td class='n'>$109</td><td class='n muted'>$1,633</td></tr>
+<tr><td class='cnum'>5613</td><td class='cname'>Tyrone</td><td class='n pos-ink'>15</td><td class='n neg-ink'>12</td><td class='n'>27</td><td class='n'>$987</td><td class='n'>$66</td><td class='n muted'>$1,660</td></tr>
+<tr><td class='cnum'>6360</td><td class='cname'>Athens</td><td class='n pos-ink'>15</td><td class='n neg-ink'>10</td><td class='n'>25</td><td class='n'>$5,754</td><td class='n'>$384</td><td class='n muted'>$3,501</td></tr>
+<tr><td class='cnum'>70025</td><td class='cname'>Tyler South</td><td class='n pos-ink'>15</td><td class='n neg-ink'>3</td><td class='n'>18</td><td class='n'>$1,502</td><td class='n'>$100</td><td class='n muted'>$623</td></tr>
+<tr><td class='cnum'>5572</td><td class='cname'>Valley</td><td class='n pos-ink'>14</td><td class='n neg-ink'>32</td><td class='n'>46</td><td class='n'>$1,208</td><td class='n'>$86</td><td class='n muted'>$3,568</td></tr>
+<tr><td class='cnum'>2115</td><td class='cname'>Calera</td><td class='n pos-ink'>14</td><td class='n neg-ink'>29</td><td class='n'>43</td><td class='n'>$1,165</td><td class='n'>$83</td><td class='n muted'>$3,085</td></tr>
+<tr><td class='cnum'>5566</td><td class='cname'>Anna TX</td><td class='n pos-ink'>14</td><td class='n neg-ink'>20</td><td class='n'>34</td><td class='n'>$5,093</td><td class='n'>$364</td><td class='n muted'>$6,328</td></tr>
+<tr><td class='cnum'>5645</td><td class='cname'>Brevard</td><td class='n pos-ink'>14</td><td class='n neg-ink'>19</td><td class='n'>33</td><td class='n'>$5,981</td><td class='n'>$427</td><td class='n muted'>$9,330</td></tr>
+<tr><td class='cnum'>70037</td><td class='cname'>Lakewood Park</td><td class='n pos-ink'>14</td><td class='n neg-ink'>18</td><td class='n'>32</td><td class='n'>$3,995</td><td class='n'>$285</td><td class='n muted'>$4,488</td></tr>
+<tr><td class='cnum'>6339</td><td class='cname'>Glasgow</td><td class='n pos-ink'>14</td><td class='n neg-ink'>16</td><td class='n'>30</td><td class='n'>$1,371</td><td class='n'>$98</td><td class='n muted'>$1,770</td></tr>
+<tr><td class='cnum'>6699</td><td class='cname'>Hermitage</td><td class='n pos-ink'>14</td><td class='n neg-ink'>16</td><td class='n'>30</td><td class='n'>$3,611</td><td class='n'>$258</td><td class='n muted'>$4,799</td></tr>
+<tr><td class='cnum'>6362</td><td class='cname'>South Lexington</td><td class='n pos-ink'>14</td><td class='n neg-ink'>16</td><td class='n'>30</td><td class='n'>$1,116</td><td class='n'>$80</td><td class='n muted'>$1,259</td></tr>
+<tr><td class='cnum'>5633</td><td class='cname'>Levittown</td><td class='n pos-ink'>14</td><td class='n neg-ink'>13</td><td class='n'>27</td><td class='n'>$1,228</td><td class='n'>$88</td><td class='n muted'>$1,178</td></tr>
+<tr><td class='cnum'>5927</td><td class='cname'>Danville</td><td class='n pos-ink'>14</td><td class='n neg-ink'>13</td><td class='n'>27</td><td class='n'>$4,133</td><td class='n'>$295</td><td class='n muted'>$5,186</td></tr>
+<tr><td class='cnum'>5643</td><td class='cname'>Hilltop Jonesboro</td><td class='n pos-ink'>14</td><td class='n neg-ink'>13</td><td class='n'>27</td><td class='n'>$4,497</td><td class='n'>$321</td><td class='n muted'>$4,153</td></tr>
+<tr><td class='cnum'>70029</td><td class='cname'>Harrisonburg</td><td class='n pos-ink'>14</td><td class='n neg-ink'>10</td><td class='n'>24</td><td class='n'>$2,723</td><td class='n'>$194</td><td class='n muted'>$2,913</td></tr>
+<tr><td class='cnum'>5623</td><td class='cname'>Snellville</td><td class='n pos-ink'>14</td><td class='n neg-ink'>8</td><td class='n'>22</td><td class='n'>$1,198</td><td class='n'>$86</td><td class='n muted'>$644</td></tr>
+<tr><td class='cnum'>70036</td><td class='cname'>Russellville</td><td class='n pos-ink'>14</td><td class='n neg-ink'>8</td><td class='n'>22</td><td class='n'>$1,396</td><td class='n'>$100</td><td class='n muted'>$562</td></tr>
+<tr><td class='cnum'>6331</td><td class='cname'>Flowery Branch</td><td class='n pos-ink'>13</td><td class='n neg-ink'>34</td><td class='n'>47</td><td class='n'>$1,699</td><td class='n'>$131</td><td class='n muted'>$3,589</td></tr>
+<tr><td class='cnum'>5936</td><td class='cname'>Seymour</td><td class='n pos-ink'>13</td><td class='n neg-ink'>30</td><td class='n'>43</td><td class='n'>$5,341</td><td class='n'>$411</td><td class='n muted'>$10,606</td></tr>
+<tr><td class='cnum'>70011</td><td class='cname'>Canton</td><td class='n pos-ink'>13</td><td class='n neg-ink'>21</td><td class='n'>34</td><td class='n'>$4,359</td><td class='n'>$335</td><td class='n muted'>$7,716</td></tr>
+<tr><td class='cnum'>6354</td><td class='cname'>Leeds</td><td class='n pos-ink'>13</td><td class='n neg-ink'>19</td><td class='n'>32</td><td class='n'>$1,329</td><td class='n'>$102</td><td class='n muted'>$1,377</td></tr>
+<tr><td class='cnum'>6981</td><td class='cname'>Rome</td><td class='n pos-ink'>13</td><td class='n neg-ink'>15</td><td class='n'>28</td><td class='n'>$4,271</td><td class='n'>$329</td><td class='n muted'>$6,053</td></tr>
+<tr><td class='cnum'>70020</td><td class='cname'>Rockmart</td><td class='n pos-ink'>13</td><td class='n neg-ink'>13</td><td class='n'>26</td><td class='n'>$1,615</td><td class='n'>$124</td><td class='n muted'>$1,305</td></tr>
+<tr><td class='cnum'>5635</td><td class='cname'>Lafayette</td><td class='n pos-ink'>13</td><td class='n neg-ink'>12</td><td class='n'>25</td><td class='n'>$3,355</td><td class='n'>$258</td><td class='n muted'>$3,970</td></tr>
+<tr><td class='cnum'>5673</td><td class='cname'>Halls</td><td class='n pos-ink'>13</td><td class='n neg-ink'>8</td><td class='n'>21</td><td class='n'>$2,240</td><td class='n'>$172</td><td class='n muted'>$1,500</td></tr>
+<tr><td class='cnum'>6995</td><td class='cname'>Sumter</td><td class='n pos-ink'>13</td><td class='n neg-ink'>8</td><td class='n'>21</td><td class='n'>$4,889</td><td class='n'>$376</td><td class='n muted'>$2,512</td></tr>
+<tr><td class='cnum'>70019</td><td class='cname'>Lanham</td><td class='n pos-ink'>12</td><td class='n neg-ink'>40</td><td class='n'>52</td><td class='n'>$2,452</td><td class='n'>$204</td><td class='n muted'>$13,142</td></tr>
+<tr><td class='cnum'>70005</td><td class='cname'>Southwest Jonesboro</td><td class='n pos-ink'>12</td><td class='n neg-ink'>30</td><td class='n'>42</td><td class='n'>$3,135</td><td class='n'>$261</td><td class='n muted'>$10,231</td></tr>
+<tr><td class='cnum'>5674</td><td class='cname'>Anniston</td><td class='n pos-ink'>12</td><td class='n neg-ink'>21</td><td class='n'>33</td><td class='n'>$2,718</td><td class='n'>$226</td><td class='n muted'>$5,328</td></tr>
+<tr><td class='cnum'>70034</td><td class='cname'>Dumfries</td><td class='n pos-ink'>12</td><td class='n neg-ink'>19</td><td class='n'>31</td><td class='n'>$4,112</td><td class='n'>$343</td><td class='n muted'>$7,363</td></tr>
+<tr><td class='cnum'>70030</td><td class='cname'>Madera Village</td><td class='n pos-ink'>12</td><td class='n neg-ink'>17</td><td class='n'>29</td><td class='n'>$5,428</td><td class='n'>$452</td><td class='n muted'>$8,682</td></tr>
+<tr><td class='cnum'>6368</td><td class='cname'>Aiken</td><td class='n pos-ink'>12</td><td class='n neg-ink'>16</td><td class='n'>28</td><td class='n'>$2,217</td><td class='n'>$185</td><td class='n muted'>$1,774</td></tr>
+<tr><td class='cnum'>70028</td><td class='cname'>Peachtree City</td><td class='n pos-ink'>12</td><td class='n neg-ink'>16</td><td class='n'>28</td><td class='n'>$1,433</td><td class='n'>$119</td><td class='n muted'>$2,881</td></tr>
+<tr><td class='cnum'>5665</td><td class='cname'>Ellijay</td><td class='n pos-ink'>12</td><td class='n neg-ink'>13</td><td class='n'>25</td><td class='n'>$1,134</td><td class='n'>$94</td><td class='n muted'>$1,397</td></tr>
+<tr><td class='cnum'>5694</td><td class='cname'>Paragould</td><td class='n pos-ink'>12</td><td class='n neg-ink'>9</td><td class='n'>21</td><td class='n'>$1,336</td><td class='n'>$111</td><td class='n muted'>$1,124</td></tr>
+<tr><td class='cnum'>5695</td><td class='cname'>Orange Park</td><td class='n pos-ink'>11</td><td class='n neg-ink'>21</td><td class='n'>32</td><td class='n'>$4,919</td><td class='n'>$447</td><td class='n muted'>$9,557</td></tr>
+<tr><td class='cnum'>6679</td><td class='cname'>Powder Springs</td><td class='n pos-ink'>11</td><td class='n neg-ink'>20</td><td class='n'>31</td><td class='n'>$1,753</td><td class='n'>$159</td><td class='n muted'>$2,883</td></tr>
+<tr><td class='cnum'>6651</td><td class='cname'>Dunwoody</td><td class='n pos-ink'>11</td><td class='n neg-ink'>20</td><td class='n'>31</td><td class='n'>$1,658</td><td class='n'>$151</td><td class='n muted'>$2,434</td></tr>
+<tr><td class='cnum'>6391</td><td class='cname'>Grayson</td><td class='n pos-ink'>11</td><td class='n neg-ink'>17</td><td class='n'>28</td><td class='n'>$4,577</td><td class='n'>$416</td><td class='n muted'>$6,929</td></tr>
+<tr><td class='cnum'>70004</td><td class='cname'>LaFollette</td><td class='n pos-ink'>11</td><td class='n neg-ink'>17</td><td class='n'>28</td><td class='n'>$3,871</td><td class='n'>$352</td><td class='n muted'>$4,990</td></tr>
+<tr><td class='cnum'>70009</td><td class='cname'>Venice</td><td class='n pos-ink'>11</td><td class='n neg-ink'>16</td><td class='n'>27</td><td class='n'>$4,645</td><td class='n'>$422</td><td class='n muted'>$7,191</td></tr>
+<tr><td class='cnum'>6697</td><td class='cname'>Panama City Beach</td><td class='n pos-ink'>11</td><td class='n neg-ink'>15</td><td class='n'>26</td><td class='n'>$1,266</td><td class='n'>$115</td><td class='n muted'>$1,777</td></tr>
+<tr><td class='cnum'>6987</td><td class='cname'>Suwanee</td><td class='n pos-ink'>11</td><td class='n neg-ink'>14</td><td class='n'>25</td><td class='n'>$818</td><td class='n'>$74</td><td class='n muted'>$1,519</td></tr>
+<tr><td class='cnum'>5656</td><td class='cname'>Crossville</td><td class='n pos-ink'>11</td><td class='n neg-ink'>8</td><td class='n'>19</td><td class='n'>$1,966</td><td class='n'>$179</td><td class='n muted'>$3,625</td></tr>
+<tr><td class='cnum'>70050</td><td class='cname'>Marana</td><td class='n pos-ink'>10</td><td class='n neg-ink'>30</td><td class='n'>40</td><td class='n'>$3,584</td><td class='n'>$358</td><td class='n muted'>$12,811</td></tr>
+<tr><td class='cnum'>5612</td><td class='cname'>Duval Station</td><td class='n pos-ink'>10</td><td class='n neg-ink'>26</td><td class='n'>36</td><td class='n'>$4,683</td><td class='n'>$468</td><td class='n muted'>$13,204</td></tr>
+<tr><td class='cnum'>70033</td><td class='cname'>Blairsville</td><td class='n pos-ink'>10</td><td class='n neg-ink'>23</td><td class='n'>33</td><td class='n'>$710</td><td class='n'>$71</td><td class='n muted'>$2,132</td></tr>
+<tr><td class='cnum'>70017</td><td class='cname'>Franklin</td><td class='n pos-ink'>10</td><td class='n neg-ink'>21</td><td class='n'>31</td><td class='n'>$2,872</td><td class='n'>$287</td><td class='n muted'>$8,908</td></tr>
+<tr><td class='cnum'>5688</td><td class='cname'>Chatsworth</td><td class='n pos-ink'>10</td><td class='n neg-ink'>19</td><td class='n'>29</td><td class='n'>$2,267</td><td class='n'>$227</td><td class='n muted'>$8,072</td></tr>
+<tr><td class='cnum'>6319</td><td class='cname'>Winston-Salem</td><td class='n pos-ink'>10</td><td class='n neg-ink'>18</td><td class='n'>28</td><td class='n'>$3,502</td><td class='n'>$350</td><td class='n muted'>$4,894</td></tr>
+<tr><td class='cnum'>5640</td><td class='cname'>Merritt Island</td><td class='n pos-ink'>10</td><td class='n neg-ink'>12</td><td class='n'>22</td><td class='n'>$2,215</td><td class='n'>$222</td><td class='n muted'>$3,525</td></tr>
+<tr><td class='cnum'>7721</td><td class='cname'>Opelika</td><td class='n pos-ink'>10</td><td class='n neg-ink'>6</td><td class='n'>16</td><td class='n'>$1,305</td><td class='n'>$131</td><td class='n muted'>$1,837</td></tr>
+<tr><td class='cnum'></td><td class='cname'>Unmapped</td><td class='n pos-ink'>10</td><td class='n neg-ink'>0</td><td class='n'>10</td><td class='n'>$0</td><td class='n'>&mdash;</td><td class='n muted'>$0</td></tr>
+<tr><td class='cnum'>70022</td><td class='cname'>Reidsville</td><td class='n pos-ink'>9</td><td class='n neg-ink'>41</td><td class='n'>50</td><td class='n'>$3,057</td><td class='n'>$340</td><td class='n muted'>$16,694</td></tr>
+<tr><td class='cnum'>5639</td><td class='cname'>Marion</td><td class='n pos-ink'>9</td><td class='n neg-ink'>36</td><td class='n'>45</td><td class='n'>$3,346</td><td class='n'>$372</td><td class='n muted'>$9,611</td></tr>
+<tr><td class='cnum'>5392</td><td class='cname'>Rocky Mount</td><td class='n pos-ink'>9</td><td class='n neg-ink'>22</td><td class='n'>31</td><td class='n'>$1,625</td><td class='n'>$181</td><td class='n muted'>$2,999</td></tr>
+<tr><td class='cnum'>6989</td><td class='cname'>Easley</td><td class='n pos-ink'>9</td><td class='n neg-ink'>19</td><td class='n'>28</td><td class='n'>$899</td><td class='n'>$100</td><td class='n muted'>$2,010</td></tr>
+<tr><td class='cnum'>5631</td><td class='cname'>Clinton</td><td class='n pos-ink'>9</td><td class='n neg-ink'>18</td><td class='n'>27</td><td class='n'>$1,527</td><td class='n'>$170</td><td class='n muted'>$2,269</td></tr>
+<tr><td class='cnum'>6657</td><td class='cname'>Greensboro</td><td class='n pos-ink'>9</td><td class='n neg-ink'>18</td><td class='n'>27</td><td class='n'>$1,238</td><td class='n'>$138</td><td class='n muted'>$2,750</td></tr>
+<tr><td class='cnum'>7964</td><td class='cname'>Pearl</td><td class='n pos-ink'>9</td><td class='n neg-ink'>15</td><td class='n'>24</td><td class='n'>$565</td><td class='n'>$63</td><td class='n muted'>$1,020</td></tr>
+<tr><td class='cnum'>6399</td><td class='cname'>Ridgewood Farms</td><td class='n pos-ink'>9</td><td class='n neg-ink'>10</td><td class='n'>19</td><td class='n'>$1,581</td><td class='n'>$176</td><td class='n muted'>$1,321</td></tr>
+<tr><td class='cnum'>70010</td><td class='cname'>Fort Pierce</td><td class='n pos-ink'>9</td><td class='n neg-ink'>10</td><td class='n'>19</td><td class='n'>$2,072</td><td class='n'>$230</td><td class='n muted'>$3,579</td></tr>
+<tr><td class='cnum'>70026</td><td class='cname'>Okeechobee</td><td class='n pos-ink'>9</td><td class='n neg-ink'>10</td><td class='n'>19</td><td class='n'>$2,873</td><td class='n'>$319</td><td class='n muted'>$2,163</td></tr>
+<tr><td class='cnum'>70039</td><td class='cname'>Edgewater</td><td class='n pos-ink'>9</td><td class='n neg-ink'>8</td><td class='n'>17</td><td class='n'>$1,785</td><td class='n'>$198</td><td class='n muted'>$1,177</td></tr>
+<tr><td class='cnum'>5611</td><td class='cname'>Miamisburg</td><td class='n pos-ink'>9</td><td class='n neg-ink'>8</td><td class='n'>17</td><td class='n'>$1,571</td><td class='n'>$175</td><td class='n muted'>$1,487</td></tr>
+<tr><td class='cnum'>5928</td><td class='cname'>Lawrenceburg TN</td><td class='n pos-ink'>8</td><td class='n neg-ink'>26</td><td class='n'>34</td><td class='n'>$1,468</td><td class='n'>$183</td><td class='n muted'>$5,103</td></tr>
+<tr><td class='cnum'>70041</td><td class='cname'>China Grove</td><td class='n pos-ink'>8</td><td class='n neg-ink'>23</td><td class='n'>31</td><td class='n'>$5,551</td><td class='n'>$694</td><td class='n muted'>$17,166</td></tr>
+<tr><td class='cnum'>5697</td><td class='cname'>North Cumming</td><td class='n pos-ink'>8</td><td class='n neg-ink'>15</td><td class='n'>23</td><td class='n'>$2,135</td><td class='n'>$267</td><td class='n muted'>$4,803</td></tr>
+<tr><td class='cnum'>5663</td><td class='cname'>Aberdeen</td><td class='n pos-ink'>8</td><td class='n neg-ink'>14</td><td class='n'>22</td><td class='n'>$626</td><td class='n'>$78</td><td class='n muted'>$1,160</td></tr>
+<tr><td class='cnum'>6310</td><td class='cname'>Versailles</td><td class='n pos-ink'>8</td><td class='n neg-ink'>12</td><td class='n'>20</td><td class='n'>$567</td><td class='n'>$71</td><td class='n muted'>$853</td></tr>
+<tr><td class='cnum'>5660</td><td class='cname'>Titusville FL</td><td class='n pos-ink'>8</td><td class='n neg-ink'>10</td><td class='n'>18</td><td class='n'>$3,907</td><td class='n'>$488</td><td class='n muted'>$4,487</td></tr>
+<tr><td class='cnum'>6659</td><td class='cname'>Alpharetta</td><td class='n pos-ink'>8</td><td class='n neg-ink'>8</td><td class='n'>16</td><td class='n'>$781</td><td class='n'>$98</td><td class='n muted'>$890</td></tr>
+<tr><td class='cnum'>6316</td><td class='cname'>Heath</td><td class='n pos-ink'>8</td><td class='n neg-ink'>4</td><td class='n'>12</td><td class='n'>$2,356</td><td class='n'>$294</td><td class='n muted'>$312</td></tr>
+<tr><td class='cnum'>70008</td><td class='cname'>Dunnellon</td><td class='n pos-ink'>7</td><td class='n neg-ink'>20</td><td class='n'>27</td><td class='n'>$1,383</td><td class='n'>$198</td><td class='n muted'>$3,491</td></tr>
+<tr><td class='cnum'>5641</td><td class='cname'>Sylacauga</td><td class='n pos-ink'>7</td><td class='n neg-ink'>18</td><td class='n'>25</td><td class='n'>$2,450</td><td class='n'>$350</td><td class='n muted'>$6,677</td></tr>
+<tr><td class='cnum'>70021</td><td class='cname'>Manassas</td><td class='n pos-ink'>7</td><td class='n neg-ink'>15</td><td class='n'>22</td><td class='n'>$674</td><td class='n'>$96</td><td class='n muted'>$1,714</td></tr>
+<tr><td class='cnum'>6367</td><td class='cname'>Noblesville</td><td class='n pos-ink'>7</td><td class='n neg-ink'>13</td><td class='n'>20</td><td class='n'>$956</td><td class='n'>$137</td><td class='n muted'>$3,077</td></tr>
+<tr><td class='cnum'>70027</td><td class='cname'>Carrollton</td><td class='n pos-ink'>7</td><td class='n neg-ink'>8</td><td class='n'>15</td><td class='n'>$3,562</td><td class='n'>$509</td><td class='n muted'>$4,186</td></tr>
+<tr><td class='cnum'>5628</td><td class='cname'>Manchester TN</td><td class='n pos-ink'>6</td><td class='n neg-ink'>18</td><td class='n'>24</td><td class='n'>$2,307</td><td class='n'>$385</td><td class='n muted'>$5,974</td></tr>
+<tr><td class='cnum'>5908</td><td class='cname'>Highland Village</td><td class='n pos-ink'>6</td><td class='n neg-ink'>15</td><td class='n'>21</td><td class='n'>$886</td><td class='n'>$148</td><td class='n muted'>$2,479</td></tr>
+<tr><td class='cnum'>70006</td><td class='cname'>N Arlington</td><td class='n pos-ink'>6</td><td class='n neg-ink'>14</td><td class='n'>20</td><td class='n'>$2,313</td><td class='n'>$385</td><td class='n muted'>$6,428</td></tr>
+<tr><td class='cnum'>70002</td><td class='cname'>Lake Wheeler NC</td><td class='n pos-ink'>6</td><td class='n neg-ink'>12</td><td class='n'>18</td><td class='n'>$2,805</td><td class='n'>$467</td><td class='n muted'>$4,033</td></tr>
+<tr><td class='cnum'>5668</td><td class='cname'>Muscle Shoals</td><td class='n pos-ink'>6</td><td class='n neg-ink'>11</td><td class='n'>17</td><td class='n'>$425</td><td class='n'>$71</td><td class='n muted'>$1,154</td></tr>
+<tr><td class='cnum'>5657</td><td class='cname'>Lenoir</td><td class='n pos-ink'>5</td><td class='n neg-ink'>15</td><td class='n'>20</td><td class='n'>$470</td><td class='n'>$94</td><td class='n muted'>$1,333</td></tr>
+<tr><td class='cnum'>70042</td><td class='cname'>Hickory Flat</td><td class='n pos-ink'>5</td><td class='n neg-ink'>14</td><td class='n'>19</td><td class='n'>$1,931</td><td class='n'>$386</td><td class='n muted'>$5,591</td></tr>
+<tr><td class='cnum'>5646</td><td class='cname'>Pell City</td><td class='n pos-ink'>5</td><td class='n neg-ink'>12</td><td class='n'>17</td><td class='n'>$2,441</td><td class='n'>$488</td><td class='n muted'>$3,777</td></tr>
+<tr><td class='cnum'>5934</td><td class='cname'>Terrell</td><td class='n pos-ink'>5</td><td class='n neg-ink'>9</td><td class='n'>14</td><td class='n'>$2,298</td><td class='n'>$460</td><td class='n muted'>$3,231</td></tr>
+<tr><td class='cnum'>6324</td><td class='cname'>Camden</td><td class='n pos-ink'>5</td><td class='n neg-ink'>9</td><td class='n'>14</td><td class='n'>$624</td><td class='n'>$125</td><td class='n muted'>$1,691</td></tr>
+<tr><td class='cnum'>6999</td><td class='cname'>Monfort Heights</td><td class='n pos-ink'>5</td><td class='n neg-ink'>9</td><td class='n'>14</td><td class='n'>$456</td><td class='n'>$91</td><td class='n muted'>$1,014</td></tr>
+<tr><td class='cnum'>2106</td><td class='cname'>Virginia Beach</td><td class='n pos-ink'>5</td><td class='n neg-ink'>7</td><td class='n'>12</td><td class='n'>$425</td><td class='n'>$85</td><td class='n muted'>$597</td></tr>
+<tr><td class='cnum'>5521</td><td class='cname'>Lake Worth</td><td class='n pos-ink'>5</td><td class='n neg-ink'>7</td><td class='n'>12</td><td class='n'>$476</td><td class='n'>$95</td><td class='n muted'>$1,168</td></tr>
+<tr><td class='cnum'>5634</td><td class='cname'>North Boise</td><td class='n pos-ink'>5</td><td class='n neg-ink'>4</td><td class='n'>9</td><td class='n'>$881</td><td class='n'>$176</td><td class='n muted'>$560</td></tr>
+<tr><td class='cnum'>5625</td><td class='cname'>Watkinsville</td><td class='n pos-ink'>4</td><td class='n neg-ink'>17</td><td class='n'>21</td><td class='n'>$712</td><td class='n'>$178</td><td class='n muted'>$2,200</td></tr>
+<tr><td class='cnum'>5691</td><td class='cname'>Cornelia</td><td class='n pos-ink'>4</td><td class='n neg-ink'>15</td><td class='n'>19</td><td class='n'>$418</td><td class='n'>$104</td><td class='n muted'>$1,992</td></tr>
+<tr><td class='cnum'>6350</td><td class='cname'>Asheboro</td><td class='n pos-ink'>4</td><td class='n neg-ink'>13</td><td class='n'>17</td><td class='n'>$726</td><td class='n'>$181</td><td class='n muted'>$1,164</td></tr>
+<tr><td class='cnum'>5926</td><td class='cname'>Port Orange</td><td class='n pos-ink'>4</td><td class='n neg-ink'>13</td><td class='n'>17</td><td class='n'>$1,265</td><td class='n'>$316</td><td class='n muted'>$4,087</td></tr>
+<tr><td class='cnum'>5604</td><td class='cname'>Green Cove</td><td class='n pos-ink'>4</td><td class='n neg-ink'>13</td><td class='n'>17</td><td class='n'>$1,873</td><td class='n'>$468</td><td class='n muted'>$7,249</td></tr>
+<tr><td class='cnum'>6320</td><td class='cname'>Morristown</td><td class='n pos-ink'>4</td><td class='n neg-ink'>11</td><td class='n'>15</td><td class='n'>$1,538</td><td class='n'>$385</td><td class='n muted'>$3,350</td></tr>
+<tr><td class='cnum'>5529</td><td class='cname'>Ooltewah</td><td class='n pos-ink'>4</td><td class='n neg-ink'>10</td><td class='n'>14</td><td class='n'>$1,871</td><td class='n'>$468</td><td class='n muted'>$3,618</td></tr>
+<tr><td class='cnum'>5617</td><td class='cname'>Durant</td><td class='n pos-ink'>4</td><td class='n neg-ink'>8</td><td class='n'>12</td><td class='n'>$538</td><td class='n'>$135</td><td class='n muted'>$1,256</td></tr>
+<tr><td class='cnum'>6990</td><td class='cname'>Milton</td><td class='n pos-ink'>4</td><td class='n neg-ink'>7</td><td class='n'>11</td><td class='n'>$350</td><td class='n'>$87</td><td class='n muted'>$612</td></tr>
+<tr><td class='cnum'>5648</td><td class='cname'>Gaffney</td><td class='n pos-ink'>4</td><td class='n neg-ink'>5</td><td class='n'>9</td><td class='n'>$1,411</td><td class='n'>$353</td><td class='n muted'>$1,186</td></tr>
+<tr><td class='cnum'>5609</td><td class='cname'>Casa View</td><td class='n pos-ink'>3</td><td class='n neg-ink'>29</td><td class='n'>32</td><td class='n'>$622</td><td class='n'>$207</td><td class='n muted'>$5,102</td></tr>
+<tr><td class='cnum'>5687</td><td class='cname'>Calhoun</td><td class='n pos-ink'>3</td><td class='n neg-ink'>16</td><td class='n'>19</td><td class='n'>$960</td><td class='n'>$320</td><td class='n muted'>$5,443</td></tr>
+<tr><td class='cnum'>70024</td><td class='cname'>Wake Forest-Rolesville</td><td class='n pos-ink'>3</td><td class='n neg-ink'>11</td><td class='n'>14</td><td class='n'>$1,402</td><td class='n'>$467</td><td class='n muted'>$6,003</td></tr>
+<tr><td class='cnum'>6343</td><td class='cname'>Bristol</td><td class='n pos-ink'>3</td><td class='n neg-ink'>11</td><td class='n'>14</td><td class='n'>$1,210</td><td class='n'>$403</td><td class='n muted'>$5,276</td></tr>
+<tr><td class='cnum'>5624</td><td class='cname'>North Hampton</td><td class='n pos-ink'>3</td><td class='n neg-ink'>9</td><td class='n'>12</td><td class='n'>$290</td><td class='n'>$97</td><td class='n muted'>$836</td></tr>
+<tr><td class='cnum'>6394</td><td class='cname'>Beaverton</td><td class='n pos-ink'>3</td><td class='n neg-ink'>6</td><td class='n'>9</td><td class='n'>$453</td><td class='n'>$151</td><td class='n muted'>$907</td></tr>
+<tr><td class='cnum'>5685</td><td class='cname'>Hurst</td><td class='n pos-ink'>3</td><td class='n neg-ink'>4</td><td class='n'>7</td><td class='n'>$361</td><td class='n'>$120</td><td class='n muted'>$433</td></tr>
+<tr><td class='cnum'>5696</td><td class='cname'>Corbin</td><td class='n pos-ink'>2</td><td class='n neg-ink'>32</td><td class='n'>34</td><td class='n'>$259</td><td class='n'>$129</td><td class='n muted'>$4,518</td></tr>
+<tr><td class='cnum'>5667</td><td class='cname'>Arlington TX</td><td class='n pos-ink'>2</td><td class='n neg-ink'>7</td><td class='n'>9</td><td class='n'>$855</td><td class='n'>$427</td><td class='n muted'>$1,884</td></tr>
+<tr><td class='cnum'>5622</td><td class='cname'>Logansport</td><td class='n pos-ink'>2</td><td class='n neg-ink'>1</td><td class='n'>3</td><td class='n'>$147</td><td class='n'>$73</td><td class='n muted'>$66</td></tr>
+<tr><td class='cnum'>6341</td><td class='cname'>Rock Hill</td><td class='n pos-ink'>1</td><td class='n neg-ink'>28</td><td class='n'>29</td><td class='n'>$460</td><td class='n'>$460</td><td class='n muted'>$10,534</td></tr>
+<tr><td class='cnum'>70023</td><td class='cname'>Waynesboro TN</td><td class='n pos-ink'>1</td><td class='n neg-ink'>8</td><td class='n'>9</td><td class='n'>$68</td><td class='n'>$68</td><td class='n muted'>$934</td></tr>
+<tr><td class='cnum'>5649</td><td class='cname'>Duncanville</td><td class='n pos-ink'>1</td><td class='n neg-ink'>8</td><td class='n'>9</td><td class='n'>$150</td><td class='n'>$150</td><td class='n muted'>$1,236</td></tr>
+<tr><td class='cnum'>5659</td><td class='cname'>Greeneville</td><td class='n pos-ink'>0</td><td class='n neg-ink'>17</td><td class='n'>17</td><td class='n'>$0</td><td class='n'>&mdash;</td><td class='n muted'>$5,225</td></tr>
+<tr><td class='cnum'>5653</td><td class='cname'>Club 5653</td><td class='n pos-ink'>0</td><td class='n neg-ink'>8</td><td class='n'>8</td><td class='n'>$0</td><td class='n'>&mdash;</td><td class='n muted'>$0</td></tr>
+<tr><td class='cnum'>5690</td><td class='cname'>Spindale</td><td class='n pos-ink'>0</td><td class='n neg-ink'>7</td><td class='n'>7</td><td class='n'>$0</td><td class='n'>&mdash;</td><td class='n muted'>$560</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <p class="cap">Scroll for all clubs. “Join value” = total contract value of completed memberships; “Value at stake” = contract value of incomplete joins at that club.</p>
+</section>
+
+<!-- LOST -->
+<section>
+  <div class="sec-head"><span class="idx">05</span><h2>Incomplete joins by club</h2>
+    <span class="note">3,832 incomplete &middot; $991,490 at stake</span></div>
+  <p class="lead">People who entered checkout but did not complete enrollment. These are recovery opportunities;
+  the club table above carries each club’s incomplete count and dollar value alongside its joins.</p>
+  <h3 class="blk">Top 15 clubs &mdash; incomplete joins</h3>
+  <div class="chart"><div class="bar-row"><div class="bar-lab" title="Homestead">Homestead</div><div class="bar-track"><div class="bar-fill neg" style="width:100.00%"></div></div><div class="bar-val">133</div></div>
+<div class="bar-row"><div class="bar-lab" title="Somerset">Somerset</div><div class="bar-track"><div class="bar-fill neg" style="width:71.43%"></div></div><div class="bar-val">95</div></div>
+<div class="bar-row"><div class="bar-lab" title="Ocala">Ocala</div><div class="bar-track"><div class="bar-fill neg" style="width:66.17%"></div></div><div class="bar-val">88</div></div>
+<div class="bar-row"><div class="bar-lab" title="Lafayette TN">Lafayette TN</div><div class="bar-track"><div class="bar-fill neg" style="width:47.37%"></div></div><div class="bar-val">63</div></div>
+<div class="bar-row"><div class="bar-lab" title="Boiling Springs">Boiling Springs</div><div class="bar-track"><div class="bar-fill neg" style="width:36.84%"></div></div><div class="bar-val">49</div></div>
+<div class="bar-row"><div class="bar-lab" title="Yadkinville">Yadkinville</div><div class="bar-track"><div class="bar-fill neg" style="width:36.09%"></div></div><div class="bar-val">48</div></div>
+<div class="bar-row"><div class="bar-lab" title="Freeport">Freeport</div><div class="bar-track"><div class="bar-fill neg" style="width:33.08%"></div></div><div class="bar-val">44</div></div>
+<div class="bar-row"><div class="bar-lab" title="Madisonville">Madisonville</div><div class="bar-track"><div class="bar-fill neg" style="width:32.33%"></div></div><div class="bar-val">43</div></div>
+<div class="bar-row"><div class="bar-lab" title="Reidsville">Reidsville</div><div class="bar-track"><div class="bar-fill neg" style="width:30.83%"></div></div><div class="bar-val">41</div></div>
+<div class="bar-row"><div class="bar-lab" title="Lanham">Lanham</div><div class="bar-track"><div class="bar-fill neg" style="width:30.08%"></div></div><div class="bar-val">40</div></div>
+<div class="bar-row"><div class="bar-lab" title="Lovejoy">Lovejoy</div><div class="bar-track"><div class="bar-fill neg" style="width:29.32%"></div></div><div class="bar-val">39</div></div>
+<div class="bar-row"><div class="bar-lab" title="North Ocala">North Ocala</div><div class="bar-track"><div class="bar-fill neg" style="width:29.32%"></div></div><div class="bar-val">39</div></div>
+<div class="bar-row"><div class="bar-lab" title="Sevierville">Sevierville</div><div class="bar-track"><div class="bar-fill neg" style="width:28.57%"></div></div><div class="bar-val">38</div></div>
+<div class="bar-row"><div class="bar-lab" title="Clanton">Clanton</div><div class="bar-track"><div class="bar-fill neg" style="width:28.57%"></div></div><div class="bar-val">38</div></div>
+<div class="bar-row"><div class="bar-lab" title="Cascade">Cascade</div><div class="bar-track"><div class="bar-fill neg" style="width:27.82%"></div></div><div class="bar-val">37</div></div></div>
+</section>
+
+<!-- PLANS -->
+<section>
+  <div class="sec-head"><span class="idx">06</span><h2>Plan performance</h2>
+    <span class="note">joined vs. incomplete, by plan</span></div>
+  <p class="lead">Which membership plans people purchased and abandoned in August, with contract value and the
+  average biweekly recurring price. Kiosk-named plans are excluded; the 30 highest-volume remaining plans
+  are shown, with the smaller and legacy plans grouped as one row.</p>
+  <div class="panel tbl-scroll">
+    <table>
+      <thead><tr><th>Plan</th><th class="n">Joined</th><th class="n">Incomplete</th><th class="n">Join value</th><th class="n">Value at stake</th><th class="n">Avg recurring</th></tr></thead>
+      <tbody><tr><td class='pname'>National Promo 2 Biweekly Premium MTM - STRONGER</td><td class='n pos-ink'>330</td><td class='n neg-ink'>293</td><td class='n'>$24,284</td><td class='n muted'>$21,351</td><td class='n'>$17.48</td></tr>
+<tr><td class='pname'>Biweekly Premium MTM</td><td class='n pos-ink'>312</td><td class='n neg-ink'>543</td><td class='n'>$31,818</td><td class='n muted'>$60,851</td><td class='n'>$17.38</td></tr>
+<tr><td class='pname'>Presale Biweekly Premium MTM</td><td class='n pos-ink'>257</td><td class='n neg-ink'>99</td><td class='n'>$13,818</td><td class='n muted'>$5,333</td><td class='n'>$15.36</td></tr>
+<tr><td class='pname'>Premium Term</td><td class='n pos-ink'>234</td><td class='n neg-ink'>240</td><td class='n'>$114,460</td><td class='n muted'>$122,052</td><td class='n'>$17.26</td></tr>
+<tr><td class='pname'>Biweekly Basic MTM</td><td class='n pos-ink'>180</td><td class='n neg-ink'>307</td><td class='n'>$20,462</td><td class='n muted'>$36,849</td><td class='n'>$12.25</td></tr>
+<tr><td class='pname'>Biweekly Premium Term</td><td class='n pos-ink'>148</td><td class='n neg-ink'>255</td><td class='n'>$79,279</td><td class='n muted'>$137,736</td><td class='n'>$17.61</td></tr>
+<tr><td class='pname'>Premium Month to Month_MP</td><td class='n pos-ink'>135</td><td class='n neg-ink'>177</td><td class='n'>$12,730</td><td class='n muted'>$17,509</td><td class='n'>$21.26</td></tr>
+<tr><td class='pname'>National Promo 2 Biweekly Premium Term - STRONGER</td><td class='n pos-ink'>131</td><td class='n neg-ink'>118</td><td class='n'>$68,314</td><td class='n muted'>$60,410</td><td class='n'>$16.87</td></tr>
+<tr><td class='pname'>National Promo 1 Biweekly Premium MTM BANANA</td><td class='n pos-ink'>109</td><td class='n neg-ink'>63</td><td class='n'>$7,696</td><td class='n muted'>$4,524</td><td class='n'>$17.40</td></tr>
+<tr><td class='pname'>National Promo 2 Biweekly Premium MTM STRONGER</td><td class='n pos-ink'>106</td><td class='n neg-ink'>112</td><td class='n'>$7,261</td><td class='n muted'>$7,665</td><td class='n'>$16.36</td></tr>
+<tr><td class='pname'>Biweekly Premium Term- 18 MO_MP</td><td class='n pos-ink'>92</td><td class='n neg-ink'>109</td><td class='n'>$72,766</td><td class='n muted'>$86,168</td><td class='n'>$17.50</td></tr>
+<tr><td class='pname'>Bi Weekly Premium MTM</td><td class='n pos-ink'>88</td><td class='n neg-ink'>90</td><td class='n'>$7,456</td><td class='n muted'>$7,884</td><td class='n'>$15.67</td></tr>
+<tr><td class='pname'>Basic Month to Month</td><td class='n pos-ink'>70</td><td class='n neg-ink'>123</td><td class='n'>$7,990</td><td class='n muted'>$14,581</td><td class='n'>$16.93</td></tr>
+<tr><td class='pname'>Biweekly Premium Month to Month_MP</td><td class='n pos-ink'>67</td><td class='n neg-ink'>89</td><td class='n'>$6,501</td><td class='n muted'>$9,443</td><td class='n'>$17.85</td></tr>
+<tr><td class='pname'>Biweekly Basic Term</td><td class='n pos-ink'>51</td><td class='n neg-ink'>84</td><td class='n'>$21,538</td><td class='n muted'>$35,560</td><td class='n'>$12.28</td></tr>
+<tr><td class='pname'>Biweekly Premium Term- 18 MO_Icart</td><td class='n pos-ink'>45</td><td class='n neg-ink'>59</td><td class='n'>$33,660</td><td class='n muted'>$45,964</td><td class='n'>$17.50</td></tr>
+<tr><td class='pname'>Biweekly Basic Month to Month</td><td class='n pos-ink'>45</td><td class='n neg-ink'>48</td><td class='n'>$5,137</td><td class='n muted'>$5,702</td><td class='n'>$11.76</td></tr>
+<tr><td class='pname'>Basic Term</td><td class='n pos-ink'>42</td><td class='n neg-ink'>66</td><td class='n'>$17,327</td><td class='n muted'>$27,954</td><td class='n'>$14.07</td></tr>
+<tr><td class='pname'>Biweekly Premium TERM eGYM</td><td class='n pos-ink'>41</td><td class='n neg-ink'>101</td><td class='n'>$27,995</td><td class='n muted'>$68,834</td><td class='n'>$22.50</td></tr>
+<tr><td class='pname'>Biweekly - Premium Term</td><td class='n pos-ink'>39</td><td class='n neg-ink'>55</td><td class='n'>$19,023</td><td class='n muted'>$26,475</td><td class='n'>$16.02</td></tr>
+<tr><td class='pname'>National Promo 2 Biweekly Premium TERM STRONGER</td><td class='n pos-ink'>33</td><td class='n neg-ink'>43</td><td class='n'>$16,131</td><td class='n muted'>$20,189</td><td class='n'>$16.35</td></tr>
+<tr><td class='pname'>Biweekly Premium MTM ProDecember</td><td class='n pos-ink'>33</td><td class='n neg-ink'>16</td><td class='n'>$1,658</td><td class='n muted'>$804</td><td class='n'>$17.49</td></tr>
+<tr><td class='pname'>Biweekly Premium MTM_MP</td><td class='n pos-ink'>31</td><td class='n neg-ink'>40</td><td class='n'>$3,714</td><td class='n muted'>$5,379</td><td class='n'>$17.65</td></tr>
+<tr><td class='pname'>National Promo 1 Biweekly Premium Term BANANA</td><td class='n pos-ink'>22</td><td class='n neg-ink'>22</td><td class='n'>$12,812</td><td class='n muted'>$11,956</td><td class='n'>$16.93</td></tr>
+<tr><td class='pname'>Biweekly Premium Plus MTM</td><td class='n pos-ink'>21</td><td class='n neg-ink'>18</td><td class='n'>$1,417</td><td class='n muted'>$1,215</td><td class='n'>$17.49</td></tr>
+<tr><td class='pname'>Bi Weekly Basic MTM</td><td class='n pos-ink'>19</td><td class='n neg-ink'>37</td><td class='n'>$2,479</td><td class='n muted'>$4,828</td><td class='n'>$11.49</td></tr>
+<tr><td class='pname'>Biweekly Premium MTM IHEARTWOA</td><td class='n pos-ink'>18</td><td class='n neg-ink'>9</td><td class='n'>$1,143</td><td class='n muted'>$571</td><td class='n'>$12.49</td></tr>
+<tr><td class='pname'>BiWeekly Premium MTM</td><td class='n pos-ink'>18</td><td class='n neg-ink'>69</td><td class='n'>$2,251</td><td class='n muted'>$9,170</td><td class='n'>$17.50</td></tr>
+<tr><td class='pname'>Biweekly Premium Term- 18 MO_ Icart</td><td class='n pos-ink'>17</td><td class='n neg-ink'>14</td><td class='n'>$12,172</td><td class='n muted'>$10,024</td><td class='n'>$17.50</td></tr>
+<tr><td class='pname'>Presale Biweekly Premium Term</td><td class='n pos-ink'>17</td><td class='n neg-ink'>6</td><td class='n'>$8,818</td><td class='n muted'>$3,112</td><td class='n'>$17.99</td></tr>
+<tr class='other'><td class='pname'>All other plans (remaining smaller &amp; legacy plans)</td><td class='n pos-ink'>274</td><td class='n neg-ink'>527</td><td class='n'>$72,664</td><td class='n muted'>$121,398</td><td class='n'>&mdash;</td></tr></tbody>
+    </table>
+  </div>
+  <p class="cap">Recurring price is the biweekly dues amount. “Term” plans carry the highest contract values; low-dollar
+  MTM (month-to-month) and Presale plans drive the highest join counts.</p>
+</section>
+
+<footer>
+  <div class="foot-grid">
+    <div>
+      <h3 class="blk">How these numbers are counted</h3>
+      <p>Member figures are deduplicated to one record per person (by email; a completed join outranks an incomplete one),
+      matching the methodology of the live dashboard at reports.woat.org. Date range is Aug 1&ndash;31, 2026 in UTC.
+      Completed = status “joined”; Incomplete = entered checkout, swept after 15 min without completing.
+      <b>Kiosk excluded:</b> all records that came through the kiosk server (platform = kiosk) or carry a Kiosk-named plan
+      are removed. <b>Eulerity excluded:</b> any join whose source parameter (utm_source) is the Eulerity ad platform is
+      also removed &mdash; Eulerity is a separate agency running a subset of locations, so its 98 joins are not part of
+      this campaign&rsquo;s numbers. Because of these two exclusions these totals run below the live reports.woat.org
+      dashboard, which still includes both.</p>
+    </div>
+    <div>
+      <h3 class="blk">Sources &amp; caveats</h3>
+      <p><b>Traffic:</b> GA4 “Workout Anytime – Main GA4” property, Total/Active/New users.
+      <b>Memberships:</b> iCart Supabase database powering reports.woat.org.
+      Traffic and membership figures come from different systems and are not expected to tie out 1:1.
+      A small number of joins (10) have no club captured and appear as “Unmapped.”</p>
+    </div>
+  </div>
+  <p style="margin-top:18px">Prepared by Sneeze It for Workout Anytime &middot; August 2026</p>
+</footer>
+</div>
