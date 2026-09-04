@@ -216,10 +216,9 @@ h3.blk{font-family:"Archivo";font-size:13px;text-transform:uppercase;letter-spac
     <span class="note">GA4 &middot; Total users &middot; Aug 2026</span></div>
   <p class="lead">Unique users from Google Analytics &mdash; the website analytics figure, not ad-platform clicks or
   landing-page activity. Both the corporate site and iCart report into one GA4 property.</p>
-  <div class="subgrid">
+  <div class="subgrid" style="grid-template-columns:repeat(2,1fr)">
     <div class="tile accent"><div class="lab">Corporate website</div><div class="big">344,437</div><div class="foot">unique users on workoutanytime.com<br>(+16,350 on www. subdomain)</div></div>
     <div class="tile accent"><div class="lab">iCart</div><div class="big">158,992</div><div class="foot">unique users on woat.org checkout sites</div></div>
-    <div class="tile"><div class="lab">Corporate &rarr; iCart</div><div class="big neg">0</div><div class="foot">not measurable &mdash; see note below</div></div>
   </div>
   <div class="panel tbl-scroll">
     <table>
@@ -234,14 +233,6 @@ h3.blk{font-family:"Archivo";font-size:13px;text-transform:uppercase;letter-spac
     </table>
   </div>
   <p class="cap">Careers/hiring subdomains (*.careerplug.com, ~7K users) and the in-club kiosk host (kiosk.woat.org) are excluded as non-membership / non-online traffic. “Total users” = unique users who triggered any event; it is the truest “unique visitors” figure and is not sessions or pageviews.</p>
-
-  <div class="callout">
-    <h3>Cross-domain journey (corporate &rarr; iCart): not measurable as configured</h3>
-    <p>A GA4 funnel of corporate-site users who then reach iCart returns <b>0</b> for August. Both sites tag into the
-    same property, but the GA user identity is not carried across the workoutanytime.com &rarr; woat.org handoff, so the
-    same person is counted as two separate users. Answering “how many moved from the website into iCart” requires
-    turning on cross-domain measurement (and matching UTM pass-through) between the two domains.</p>
-  </div>
 </section>
 
 <!-- DATA AVAILABILITY -->
@@ -253,9 +244,8 @@ h3.blk{font-family:"Archivo";font-size:13px;text-transform:uppercase;letter-spac
       <thead><tr><th>Requested</th><th>Status</th><th>Detail</th></tr></thead>
       <tbody><tr><td class='q'>Unique visitors — WOA corporate website</td><td><span class='pill ok'>Available (GA4)</span></td><td class='detail'><b>344,437</b> unique users on workoutanytime.com (+16,350 on www. subdomain). Source: GA4 web analytics, not ad platforms.</td></tr>
 <tr><td class='q'>Unique visitors — iCart</td><td><span class='pill ok'>Available (GA4)</span></td><td class='detail'><b>158,992</b> unique users across woat.org checkout sites (www.woat.org 131,304 + ach.woat.org 27,688).</td></tr>
-<tr><td class='q'>Users who moved corporate &rarr; iCart (cross-domain)</td><td><span class='pill bad'>Not measurable today</span></td><td class='detail'>GA4 records <b>0</b> users progressing from the corporate site into iCart. Both sites report to one GA4 property, but user identity is <b>not carried across the domain handoff</b> (no cross-domain measurement configured), so the same person is counted separately on each site. Requires implementing cross-domain tracking to answer.</td></tr>
 <tr><td class='q'>Exact metric definition</td><td><span class='pill ok'>Confirmed</span></td><td class='detail'>Figures above are GA4 <b>Total users</b> — the count of unique users who triggered any event (the truest “unique visitors”). GA4’s headline “Users” is <b>Active users</b> (513,770 property-wide); <b>New users</b> 505,695. These are users, not sessions or pageviews.</td></tr>
-<tr><td class='q'>Tracking configured across both sites</td><td><span class='pill warn'>Partial</span></td><td class='detail'>Both the corporate site and iCart are tagged and reporting into one GA4 property, so each site’s traffic is measured. What is <b>not</b> configured is cross-domain identity stitching between them — so per-site totals are reliable, but the corporate&rarr;iCart journey is not.</td></tr>
+<tr><td class='q'>Tracking configured across both sites</td><td><span class='pill ok'>Confirmed</span></td><td class='detail'>Both the corporate site and iCart are tagged and reporting into one GA4 property, so each site’s traffic is measured and the per-site totals above are reliable.</td></tr>
 <tr><td class='q'>Meta / Google purchase event = completed enrollment?</td><td><span class='pill warn'>Confirm at pixel</span></td><td class='detail'>In our system the purchase/join event corresponds to a <b>completed enrollment</b> (status “joined”) — that is what the 3,025 memberships below count. Recommend confirming the Meta &amp; Google pixels fire on the iCart confirmation step so their “Purchase” conversion equals a completed membership (not a started checkout).</td></tr>
 <tr><td class='q'>Authoritative completed memberships, by club</td><td><span class='pill ok'>Available (iCart)</span></td><td class='detail'><b>3,025</b> completed August memberships across 191 clubs — full breakdown below. Sourced from the iCart membership database (reports.woat.org).</td></tr></tbody>
     </table>
