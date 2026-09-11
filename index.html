@@ -81,49 +81,54 @@
       var spend=res[0], filt=res[1];
       var total=Number(spend&&spend.total_spend)||0;
       if(!total){ c.hidden=true; return; }
-      var impr=Number(spend.total_impressions)||0, clicks=Number(spend.total_clicks)||0;
+      var days=spend.by_day||[]; var rangeDays=dayDiff(from,to); var full=days.length>=rangeDays;
+      var minD=days.length?days[0].day:from, maxD=days.length?days[days.length-1].day:to;
+      // joins counted only on the days that actually have spend data (handles partial coverage and gaps)
+      var covered={}; days.forEach(function(d){covered[d.day]=true;});
+      var sm=(filt&&filt.summary)||{}; var allJoins=Number(sm.joins)||0, allVal=Number(sm.join_contract_value)||0;
+      var jd=(filt&&filt.by_day)||[]; var covJoins=0; jd.forEach(function(d){ if(covered[d.day]) covJoins+=Number(d.joins)||0; });
+      if(full||!jd.length) covJoins=allJoins;
+      var covVal=full?allVal:(allJoins?covJoins*(allVal/allJoins):0);
+      // delivery metrics only from rows that carry impressions/clicks (API-sourced days)
+      var dSpend=0, impr=0, clicks=0;
+      (spend.by_campaign||[]).forEach(function(cp){ var ci=Number(cp.impressions)||0, cc=Number(cp.clicks)||0; if(ci||cc){ dSpend+=Number(cp.spend)||0; impr+=ci; clicks+=cc; } });
+      var partialDelivery=(impr||clicks)&&(dSpend<total-0.005);
       var plats=(spend.by_platform||[]).map(function(p){return PL[p.platform]||p.platform;});
-      var days=spend.by_day||[]; var minD=days.length?days[0].day:from, maxD=days.length?days[days.length-1].day:to;
-      var full=days.length>=0.9*dayDiff(from,to);
-      var p=full?Promise.resolve(filt):rpc("report_filtered",{p_from:minD,p_to:maxD}).catch(function(){return filt;});
-      return p.then(function(f2){
-        var bj=(f2&&f2.summary)||{}, bFrom=full?from:minD, bTo=full?to:maxD;
-        var joins=Number(bj.joins)||0, jval=Number(bj.join_contract_value)||0;
-        document.getElementById("spPlat").textContent=plats.length?("· "+plats.join(" + ")):"";
-        document.getElementById("spCap").textContent=(full?("Spend "+from+" → "+to):("Spend data covers "+minD+" → "+maxD+" within the selected range"))+" · updates daily"+(plats.indexOf("Google")<0?" · Google API activates when its credentials are added":"");
-        var tiles=tile("Ad spend",money(total),full?null:("for "+minD+" → "+maxD));
-        if(impr||clicks){ tiles+=tile("Impressions",intf(impr))+tile("Clicks",intf(clicks))+tile("Avg CPC",clicks?money(total/clicks):"—")+tile("Avg CPM",impr?money(total/impr*1000):"—"); }
-        document.getElementById("spTiles").innerHTML=tiles;
-        document.getElementById("spBlend").innerHTML=
-          '<div><div class="label" style="color:var(--muted)">Cost / join <span style="font-style:italic">· blended</span></div><div class="val">'+(joins?money(total/joins):"—")+'</div><div style="font-size:11px;color:var(--muted)">'+intf(joins)+' joins, all channels</div></div>'+
-          '<div><div class="label" style="color:var(--muted)">Contract value / ad $ <span style="font-style:italic">· blended</span></div><div class="val">'+(total?money(jval/total):"—")+'</div><div style="font-size:11px;color:var(--muted)">'+money0(jval)+' join value</div></div>';
-        document.getElementById("spNote").innerHTML="Blended = tracked spend across <b>"+plats.join(" + ")+"</b> ÷ every completed join in "+bFrom+" → "+bTo+". Not a per-channel attributed CPA — individual joins aren't tied to an ad channel yet."+(impr||clicks?"":" Impressions/clicks aren't available for client-reported monthly totals.");
-        var tb=document.querySelector("#spTbl tbody"); tb.innerHTML="";
-        (spend.by_campaign||[]).forEach(function(cp){
-          var s=Number(cp.spend)||0, ci=Number(cp.impressions)||0, cc=Number(cp.clicks)||0;
-          var tr=document.createElement("tr");
-          tr.innerHTML='<td style="text-align:left" title="'+esc(cp.campaign)+'">'+esc(cp.campaign||"(none)")+' <span style="color:var(--muted);font-size:11px">'+(PL[cp.platform]||cp.platform)+'</span></td>'+
-            "<td>"+money(s)+"</td><td>"+(ci?intf(ci):"—")+"</td><td>"+(cc?intf(cc):"—")+"</td><td>"+(cc?money(s/cc):"—")+"</td><td>"+(ci?money(s/ci*1000):"—")+"</td>";
-          tb.appendChild(tr);
-        });
-        var vals=days.map(function(d){return Number(d.spend)||0;});
-        var mx=Math.max.apply(null,[1].concat(vals)), mn=vals.length?Math.min.apply(null,vals):0;
-        var avg=vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:0;
-        var even=vals.length>1&&(mx-mn)<0.5; var html="";
-        if(vals.length>1&&!even){
-          var lab='<div class="label" style="color:var(--muted);margin-bottom:6px">Daily spend';
-          if(days.length<=14){
-            html=lab+"</div>"+days.map(function(d){var v=Number(d.spend)||0;return '<div style="display:flex;align-items:center;gap:8px;margin:2px 0"><div style="width:82px;font-size:12px;color:var(--text2)">'+d.day+'</div><div style="flex:1;background:var(--grid);border-radius:4px;height:12px;overflow:hidden"><div style="height:100%;width:'+(v/mx*100)+'%;background:var(--blue)"></div></div><div style="width:74px;text-align:right;font-size:12px;font-variant-numeric:tabular-nums">'+money(v)+"</div></div>";}).join("");
-          } else {
-            var pk=days[vals.indexOf(mx)];
-            html=lab+' <span style="font-weight:400;text-transform:none;letter-spacing:0">· avg '+money(avg)+"/day · peak "+money(mx)+" on "+(pk?pk.day:"")+"</span></div>"+
-              '<div style="display:flex;align-items:flex-end;gap:2px;height:44px">'+days.map(function(d){var v=Number(d.spend)||0;return '<div title="'+d.day+" "+money(v)+'" style="flex:1;background:var(--blue);border-radius:2px 2px 0 0;height:'+Math.max(2,v/mx*100)+'%"></div>';}).join("")+"</div>"+
-              '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:3px"><span>'+days[0].day+"</span><span>"+days[days.length-1].day+"</span></div>";
-          }
-        }
-        document.getElementById("spDays").innerHTML=html;
-        c.hidden=false;
+      var covLabel=full?(from+" → "+to):(days.length+" of "+rangeDays+" days between "+minD+" and "+maxD);
+      document.getElementById("spPlat").textContent=plats.length?("· "+plats.join(" + ")):"";
+      document.getElementById("spCap").textContent=(full?("Spend "+from+" → "+to):("Spend data on "+covLabel))+" · updates daily"+(plats.indexOf("Google")<0?" · Google API activates when its credentials are added":"");
+      var tiles=tile("Ad spend",money(total),full?null:(days.length+" of "+rangeDays+" days"));
+      if(impr||clicks){ tiles+=tile("Impressions",intf(impr),partialDelivery?"API-sourced days":null)+tile("Clicks",intf(clicks),partialDelivery?"API-sourced days":null)+tile("Avg CPC",clicks?money(dSpend/clicks):"—",partialDelivery?("on "+money(dSpend)):null)+tile("Avg CPM",impr?money(dSpend/impr*1000):"—",partialDelivery?("on "+money(dSpend)):null); }
+      document.getElementById("spTiles").innerHTML=tiles;
+      document.getElementById("spBlend").innerHTML=
+        '<div><div class="label" style="color:var(--muted)">Cost / join <span style="font-style:italic">· blended</span></div><div class="val">'+(covJoins?money(total/covJoins):"—")+'</div><div style="font-size:11px;color:var(--muted)">'+intf(covJoins)+' joins'+(full?", all channels":" on days with spend")+'</div></div>'+
+        '<div><div class="label" style="color:var(--muted)">Contract value / ad $ <span style="font-style:italic">· blended</span></div><div class="val">'+(total&&covVal?money(covVal/total):"—")+'</div><div style="font-size:11px;color:var(--muted)">'+money0(covVal)+' join value'+(full?"":" (est.)")+'</div></div>';
+      document.getElementById("spNote").innerHTML="Blended = tracked spend across <b>"+plats.join(" + ")+"</b> ÷ every completed join "+(full?"in the selected range":"on the "+days.length+" days that have spend data")+". Not a per-channel attributed CPA — individual joins aren't tied to an ad channel yet."+(impr||clicks?(partialDelivery?" CPC/CPM use only API-sourced spend; client-reported monthly totals carry no impressions or clicks.":""):" Impressions/clicks aren't available for client-reported monthly totals.");
+      var tb=document.querySelector("#spTbl tbody"); tb.innerHTML="";
+      (spend.by_campaign||[]).forEach(function(cp){
+        var s=Number(cp.spend)||0, ci=Number(cp.impressions)||0, cc=Number(cp.clicks)||0;
+        var tr=document.createElement("tr");
+        tr.innerHTML='<td style="text-align:left" title="'+esc(cp.campaign)+'">'+esc(cp.campaign||"(none)")+' <span style="color:var(--muted);font-size:11px">'+(PL[cp.platform]||cp.platform)+'</span></td>'+
+          "<td>"+money(s)+"</td><td>"+(ci?intf(ci):"—")+"</td><td>"+(cc?intf(cc):"—")+"</td><td>"+(cc?money(s/cc):"—")+"</td><td>"+(ci?money(s/ci*1000):"—")+"</td>";
+        tb.appendChild(tr);
       });
+      var vals=days.map(function(d){return Number(d.spend)||0;});
+      var mx=Math.max.apply(null,[1].concat(vals)), mn=vals.length?Math.min.apply(null,vals):0;
+      var avg=vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:0;
+      var even=vals.length>1&&(mx-mn)<0.5; var html="";
+      if(vals.length>1&&!even){
+        var lab='<div class="label" style="color:var(--muted);margin-bottom:6px">Daily spend';
+        if(days.length<=14){
+          html=lab+"</div>"+days.map(function(d){var v=Number(d.spend)||0;return '<div style="display:flex;align-items:center;gap:8px;margin:2px 0"><div style="width:82px;font-size:12px;color:var(--text2)">'+d.day+'</div><div style="flex:1;background:var(--grid);border-radius:4px;height:12px;overflow:hidden"><div style="height:100%;width:'+(v/mx*100)+'%;background:var(--blue)"></div></div><div style="width:74px;text-align:right;font-size:12px;font-variant-numeric:tabular-nums">'+money(v)+"</div></div>";}).join("");
+        } else {
+          var pk=days[vals.indexOf(mx)];
+          html=lab+' <span style="font-weight:400;text-transform:none;letter-spacing:0">· avg '+money(avg)+"/day · peak "+money(mx)+" on "+(pk?pk.day:"")+"</span></div>"+
+            '<div style="display:flex;align-items:flex-end;gap:2px;height:44px">'+days.map(function(d){var v=Number(d.spend)||0;return '<div title="'+d.day+" "+money(v)+'" style="flex:1;background:var(--blue);border-radius:2px 2px 0 0;height:'+Math.max(2,v/mx*100)+'%"></div>';}).join("")+"</div>"+
+            '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:3px"><span>'+days[0].day+"</span><span>"+days[days.length-1].day+"</span></div>";
+        }
+      }
+      document.getElementById("spDays").innerHTML=html;
+      c.hidden=false;
     }).catch(function(){ lastKey=""; if(!attempt){ setTimeout(function(){refresh(from,to,1);},1200); } else { c.hidden=true; } });
   }
   var of=window.fetch;
