@@ -156,6 +156,113 @@
   });
 })();
 </script>
+<script>
+(function(){
+  var SB="https://vxfhxgtcwczvoewozgws.supabase.co", KEY="";
+  var intf=function(n){return (Number(n)||0).toLocaleString("en-US");};
+  var pct=function(n){return (Number(n)||0).toFixed(1)+"%";};
+  var esc=function(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");};
+  var dayDiff=function(a,b){return Math.round((new Date(b+"T00:00:00Z")-new Date(a+"T00:00:00Z"))/86400000)+1;};
+  var tile=function(l,v,s){return '<div class="tile"><div class="label">'+l+'</div><div class="val">'+v+'</div>'+(s?'<div style="font-size:11px;color:var(--muted);margin-top:2px">'+s+'</div>':'')+'</div>';};
+  // KEY is captured from the dashboard's own Supabase request (see the fetch wrap below),
+  // so this snippet carries no key of its own and never needs editing if the key rotates.
+  function rpc(name,body){return fetch(SB+"/rest/v1/rpc/"+name,{method:"POST",headers:{"apikey":KEY,"authorization":"Bearer "+KEY,"content-type":"application/json"},body:JSON.stringify(body)}).then(function(r){if(!r.ok)throw new Error(name+" "+r.status);return r.json();});}
+  var lastKey="", timer=null;
+
+  function step(label,value,sub,w){
+    return '<div style="flex:1;min-width:104px">'+
+      '<div style="height:8px;border-radius:4px;background:var(--blue);opacity:'+(w)+';margin-bottom:6px"></div>'+
+      '<div class="label" style="color:var(--muted)">'+label+'</div>'+
+      '<div class="val" style="font-size:19px">'+value+'</div>'+
+      (sub?'<div style="font-size:11px;color:var(--muted);margin-top:1px">'+sub+'</div>':'')+'</div>';
+  }
+
+  function refresh(from,to,attempt){
+    var c=document.getElementById("ga4Card"); if(!c||!from||!to) return;
+    if(!KEY) return;
+    var key=from+"|"+to; if(key===lastKey) return; lastKey=key;
+    rpc("report_ga4_funnel",{p_from:from,p_to:to}).then(function(g){
+      var sessions=Number(g&&g.total_sessions)||0;
+      if(!sessions){ c.hidden=true; return; }
+      var users=Number(g.total_users)||0, newUsers=Number(g.total_new_users)||0;
+      var eng=Number(g.total_engaged_sessions)||0, views=Number(g.total_page_views)||0;
+      var days=g.ga4_by_day||[], rangeDays=dayDiff(from,to), full=days.length>=rangeDays;
+      var minD=days.length?days[0].day:from, maxD=days.length?days[days.length-1].day:to;
+
+      // entries/joins counted ONLY on days GA4 actually covers, so the funnel
+      // never divides a full month of joins by a partial month of sessions
+      var covered={}; days.forEach(function(d){covered[d.day]=true;});
+      var allEntries=Number(g.total_entries)||0, allJoins=Number(g.total_joins)||0;
+      var jd=g.icart_by_day||[]; var covEntries=0, covJoins=0;
+      jd.forEach(function(d){ if(covered[d.day]){ covEntries+=Number(d.entries)||0; covJoins+=Number(d.joins)||0; } });
+      if(full||!jd.length){ covEntries=allEntries; covJoins=allJoins; }
+
+      document.getElementById("g4Cap").textContent=
+        (full?("GA4 "+from+" → "+to):("GA4 data on "+days.length+" of "+rangeDays+" days between "+minD+" and "+maxD))+
+        " · woat.org, kiosk excluded · updates daily";
+
+      document.getElementById("g4Tiles").innerHTML=
+        tile("Sessions",intf(sessions),full?null:(days.length+" of "+rangeDays+" days"))+
+        tile("Users",intf(users))+
+        tile("New users",intf(newUsers),users?pct(newUsers/users*100)+" of users":null)+
+        tile("Engaged sessions",sessions?pct(eng/sessions*100):"—","of sessions")+
+        tile("Pages / session",sessions?(views/sessions).toFixed(1):"—");
+
+      var e2s=sessions?covEntries/sessions*100:0, j2e=covEntries?covJoins/covEntries*100:0, j2s=sessions?covJoins/sessions*100:0;
+      document.getElementById("g4Funnel").innerHTML=
+        '<div style="display:flex;gap:14px;flex-wrap:wrap">'+
+          step("Sessions",intf(sessions),"GA4",1)+
+          step("Checkout entries",intf(covEntries),pct(e2s)+" of sessions",0.66)+
+          step("Joins",intf(covJoins),pct(j2e)+" of entries · "+pct(j2s)+" of sessions",0.34)+
+        '</div>';
+
+      document.getElementById("g4Note").innerHTML=
+        "Sessions come from <b>GA4</b>; entries and joins come from <b>iCart</b>"+
+        (full?"":" over the "+days.length+" days GA4 covers")+
+        ". Both sides exclude <b>kiosk</b> (in-club joins convert at ~91% and would distort every rate here); <b>ACH is included</b>. Entries and joins match the platform table\u2019s non-kiosk rows exactly. GA4 and iCart still measure different things — GA4 misses visitors who decline cookies or run ad blockers, iCart does not — so read the percentages as <b>direction and trend, not exact drop-off</b>.";
+
+      var tb=document.querySelector("#g4Tbl tbody"); tb.innerHTML="";
+      (g.by_channel||[]).forEach(function(ch){
+        var s=Number(ch.sessions)||0, u=Number(ch.users)||0, nu=Number(ch.new_users)||0, e=Number(ch.engaged_sessions)||0;
+        var tr=document.createElement("tr");
+        tr.innerHTML='<td style="text-align:left">'+esc(ch.channel||"(none)")+"</td>"+
+          "<td>"+intf(s)+"</td><td>"+(sessions?pct(s/sessions*100):"—")+"</td>"+
+          "<td>"+intf(u)+"</td><td>"+intf(nu)+"</td><td>"+(s?pct(e/s*100):"—")+"</td>";
+        tb.appendChild(tr);
+      });
+
+      var vals=days.map(function(d){return Number(d.sessions)||0;});
+      var mx=Math.max.apply(null,[1].concat(vals));
+      var avg=vals.length?vals.reduce(function(a,b){return a+b;},0)/vals.length:0;
+      var html="";
+      if(vals.length>1){
+        var pk=days[vals.indexOf(mx)];
+        var lab='<div class="label" style="color:var(--muted);margin-bottom:6px">Daily sessions'+
+          ' <span style="font-weight:400;text-transform:none;letter-spacing:0">· avg '+intf(Math.round(avg))+"/day · peak "+intf(mx)+" on "+(pk?pk.day:"")+"</span></div>";
+        if(days.length<=14){
+          html=lab+days.map(function(d){var v=Number(d.sessions)||0;return '<div style="display:flex;align-items:center;gap:8px;margin:2px 0"><div style="width:82px;font-size:12px;color:var(--text2)">'+d.day+'</div><div style="flex:1;background:var(--grid);border-radius:4px;height:12px;overflow:hidden"><div style="height:100%;width:'+(v/mx*100)+'%;background:var(--blue)"></div></div><div style="width:74px;text-align:right;font-size:12px;font-variant-numeric:tabular-nums">'+intf(v)+"</div></div>";}).join("");
+        } else {
+          html=lab+'<div style="display:flex;align-items:flex-end;gap:2px;height:44px">'+days.map(function(d){var v=Number(d.sessions)||0;return '<div title="'+d.day+" "+intf(v)+' sessions" style="flex:1;background:var(--blue);border-radius:2px 2px 0 0;height:'+Math.max(2,v/mx*100)+'%"></div>';}).join("")+"</div>"+
+            '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:3px"><span>'+days[0].day+"</span><span>"+days[days.length-1].day+"</span></div>";
+        }
+      }
+      document.getElementById("g4Days").innerHTML=html;
+      c.hidden=false;
+    }).catch(function(){ lastKey=""; if(!attempt){ setTimeout(function(){refresh(from,to,1);},1200); } else { c.hidden=true; } });
+  }
+
+  var of=window.fetch;
+  window.fetch=function(u,o){
+    try{ var url=(typeof u==="string")?u:(u&&u.url)||"";
+      if(url.indexOf("/rest/v1/rpc/")>=0&&o&&o.headers&&!KEY){ KEY=o.headers.apikey||o.headers.Apikey||""; }
+      if(url.indexOf("/rpc/report_filtered")>=0&&o&&o.body){ var b=JSON.parse(o.body);
+        if(b.p_from&&b.p_to){ var f=b.p_from,t=b.p_to; clearTimeout(timer); timer=setTimeout(function(){refresh(f,t);},150); } } }
+    catch(e){}
+    return of.apply(this,arguments);
+  };
+})();
+</script>
+
 </head>
 <body>
 <div class="wrap">
@@ -236,6 +343,18 @@
   </tr></thead><tbody></tbody></table></div>
   <div id="spDays" style="margin-top:14px"></div>
 </div>
+<div class="card" id="ga4Card" hidden style="margin-top:14px">
+  <h2>Website Traffic <span style="font-weight:600;color:var(--muted);font-size:12px;margin-left:4px">· woat.org</span></h2>
+  <p class="cap" id="g4Cap"></p>
+  <div id="g4Tiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px"></div>
+  <div id="g4Funnel" style="margin-top:14px;padding:13px 14px;border:1px dashed var(--border);border-radius:10px"></div>
+  <p id="g4Note" style="font-size:11.5px;color:var(--muted);margin:6px 2px 0"></p>
+  <div style="overflow-x:auto"><table id="g4Tbl" style="margin-top:14px"><thead><tr>
+    <th style="text-align:left">Channel</th><th>Sessions</th><th>Share</th><th>Users</th><th>New</th><th>Engaged</th>
+  </tr></thead><tbody></tbody></table></div>
+  <div id="g4Days" style="margin-top:14px"></div>
+</div>
+
 <div class="grid2" id="charts" style="display:none">
     <div class="card">
       <h2>Entries vs. Joins over time</h2>
