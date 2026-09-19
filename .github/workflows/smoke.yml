@@ -1,0 +1,56 @@
+# Live smoke test of the dashboard — the automated "verify against data" step.
+#
+# Runs: on every push that touches either page, after every promote/rollback (promote.yml dispatches it, because a
+# push made by a workflow's own token never fires `on: push`), on demand, and daily at 13:00 UTC (after both workers
+# at 09:00/10:00 and the worker-health check at 12:15). It loads the LIVE page with the LIVE RPCs and asserts what a
+# reviewer would check by hand: tiles render, the spend caption and blended note agree, the source-family strip
+# equals the page's own rules computed on the live report_utms rows, the amber notes are the '*' coverage rows
+# verbatim, and there are no page/console errors. A red run is a signal to look, never a deploy — this workflow
+# changes nothing. tools/smoke-live.js has the assertions; tools/expect-strip.js is the offline twin.
+name: Live smoke test
+
+on:
+  push:
+    branches: [main]
+    paths: ["index.html", "dev/index.html", "tools/**", ".github/workflows/smoke.yml"]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 13 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - { name: root, url: "https://reports.woat.org/" }
+          - { name: dev,  url: "https://reports.woat.org/dev/" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install Playwright (Chromium)
+        run: |
+          npm init -y >/dev/null
+          npm install --no-audit --no-fund playwright@1
+          npx playwright install --with-deps chromium
+      - name: Wait for GitHub Pages to serve the checked-out commit (push and dispatch runs; the daily run skips it)
+        if: github.event_name != 'schedule'
+        run: |
+          # Pages deploys a few seconds after a push (Nate's upload, or promote.yml's push followed by its dispatch of
+          # this workflow); compare the served file's md5 with the repo's before asserting anything about it.
+          f=$([ "${{ matrix.target.name }}" = root ] && echo index.html || echo dev/index.html)
+          want=$(md5sum "$f" | cut -c1-32)
+          for i in $(seq 1 24); do
+            got=$(curl -fsSL -H 'Cache-Control: no-cache' "${{ matrix.target.url }}?v=$RANDOM" | md5sum | cut -c1-32)
+            [ "$got" = "$want" ] && { echo "served == repo ($want) after $i tries"; exit 0; }
+            sleep 10
+          done
+          echo "::warning::served page still differs from the repo after 4 min (served $got, repo $want) — testing what is served"
+      - name: Smoke ${{ matrix.target.name }}
+        run: node tools/smoke-live.js "${{ matrix.target.url }}"
