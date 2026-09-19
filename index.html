@@ -59,6 +59,7 @@
   th{color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em}
   .tip{position:fixed;pointer-events:none;opacity:0;transition:opacity .08s;z-index:20;background:var(--text);color:var(--page);font-size:12px;padding:7px 9px;border-radius:7px;box-shadow:0 6px 20px rgba(0,0,0,.18);white-space:nowrap}
   .note{margin:16px 0;font-size:13px;color:var(--text2);background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:8px;padding:12px 14px}
+  .note.caveat{border-left-color:var(--conv);margin:10px 0}
   .foot{margin-top:26px;font-size:11.5px;color:var(--muted);line-height:1.6}
 </style>
 <!-- Paid ad spend card logic. Installed in <head> so the fetch wrap sees the app's first report_filtered call. -->
@@ -66,11 +67,13 @@
 (function(){
   var SB="https://vxfhxgtcwczvoewozgws.supabase.co", KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4Zmh4Z3Rjd2N6dm9ld296Z3dzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MDA0MDQsImV4cCI6MjEwMDE3NjQwNH0.QormaoIOYkKhEciBcy9EjSKHU853nMafouj1_52hRHA";
   var PL={meta:"Meta",google:"Google",ott:"OTT / Connected TV",tiktok:"TikTok"};
+  var SPEND_FLOOR="2024-01-01"; // first day of loaded ad_spend history (2024 backfilled 2026-09-16)
   var money=function(n){return "$"+(Number(n)||0).toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});};
   var money0=function(n){return "$"+Math.round(Number(n)||0).toLocaleString("en-US");};
   var intf=function(n){return (Number(n)||0).toLocaleString("en-US");};
   var esc=function(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");};
   var dayDiff=function(a,b){return Math.round((new Date(b+"T00:00:00Z")-new Date(a+"T00:00:00Z"))/86400000)+1;};
+  var daysAgo=function(k){var d=new Date();d.setDate(d.getDate()-k);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
   var tile=function(l,v,s){return '<div class="tile"><div class="label">'+l+'</div><div class="val">'+v+'</div>'+(s?'<div style="font-size:11px;color:var(--muted);margin-top:2px">'+s+'</div>':'')+'</div>';};
   function rpc(name,body){return fetch(SB+"/rest/v1/rpc/"+name,{method:"POST",headers:{"apikey":KEY,"authorization":"Bearer "+KEY,"content-type":"application/json"},body:JSON.stringify(body)}).then(function(r){if(!r.ok)throw new Error(name+" "+r.status);return r.json();});}
   var lastKey="", timer=null;
@@ -82,7 +85,21 @@
       var total=Number(spend&&spend.total_spend)||0;
       if(!total){ c.hidden=true; return; }
       var days=spend.by_day||[]; var rangeDays=dayDiff(from,to); var full=days.length>=rangeDays;
-      var minD=days.length?days[0].day:from, maxD=days.length?days[days.length-1].day:to;
+      // Coverage is judged on API-sourced days (report_spend.by_day_api: Meta/Google rows only) when the
+      // RPC provides them, so a client-reported OTT row can never mark a day as covered. Falls back to
+      // by_day (any row) on an RPC that predates the series. Charts, totals and the cost/join logic
+      // still use `days` — every row counts as spend; only the coverage statement is stricter.
+      var cov=Array.isArray(spend.by_day_api)?spend.by_day_api:days;
+      var minD=cov.length?cov[0].day:from, maxD=cov.length?cov[cov.length-1].day:to;
+      // Spend history starts at SPEND_FLOOR and the feed lags a day, so a range that starts before the
+      // floor or runs up to today is never "full" — and neither is a gap. Judge completeness over the days
+      // spend could have covered: max(from, floor) → min(to, latest). "latest" is the last loaded day, but
+      // never earlier than two days ago: a past range is judged to its own end (so a hole at the END of
+      // August is still a hole), and a feed that stops loading shows up as a gap instead of hiding
+      // behind "data ends here". `full` is kept for the cost/join logic below.
+      var lagFloor=daysAgo(2), latest=(maxD>lagFloor)?maxD:lagFloor;
+      var expFrom=(from>SPEND_FLOOR)?from:SPEND_FLOOR, expTo=(to<latest)?to:latest;
+      var spanDays=Math.max(1,dayDiff(expFrom,expTo)), contig=cov.length>=spanDays;
       // joins counted only on the days that actually have spend data (handles partial coverage and gaps)
       var covered={}; days.forEach(function(d){covered[d.day]=true;});
       var sm=(filt&&filt.summary)||{}; var allJoins=Number(sm.joins)||0, allVal=Number(sm.join_contract_value)||0;
@@ -94,16 +111,17 @@
       (spend.by_campaign||[]).forEach(function(cp){ var ci=Number(cp.impressions)||0, cc=Number(cp.clicks)||0; if(ci||cc){ dSpend+=Number(cp.spend)||0; impr+=ci; clicks+=cc; } });
       var partialDelivery=(impr||clicks)&&(dSpend<total-0.005);
       var plats=(spend.by_platform||[]).map(function(p){return PL[p.platform]||p.platform;});
-      var covLabel=full?(from+" → "+to):(days.length+" of "+rangeDays+" days between "+minD+" and "+maxD);
+      // "recorded on" is deliberate: it says the platforms reported spend for N of the days, nothing more.
+      var covLabel=contig?(minD+" → "+maxD):(cov.length+" of "+spanDays+" days between "+expFrom+" and "+expTo);
       document.getElementById("spPlat").textContent=plats.length?("· "+plats.join(" + ")):"";
-      document.getElementById("spCap").textContent=(full?("Spend "+from+" → "+to):("Spend data on "+covLabel))+" · updates daily"+(plats.indexOf("Google")<0?" · Google API activates when its credentials are added":"");
-      var tiles=tile("Ad spend",money(total),full?null:(days.length+" of "+rangeDays+" days"));
+      document.getElementById("spCap").textContent=(contig?("Spend "+minD+" → "+maxD):("Spend recorded on "+covLabel))+" · updates daily"+(plats.indexOf("Google")<0?" · Google API activates when its credentials are added":"");
+      var tiles=tile("Ad spend",money(total),contig?null:(cov.length+" of "+spanDays+" days"));
       if(impr||clicks){ tiles+=tile("Impressions",intf(impr),partialDelivery?"API-sourced days":null)+tile("Clicks",intf(clicks),partialDelivery?"API-sourced days":null)+tile("Avg CPC",clicks?money(dSpend/clicks):"—",partialDelivery?("on "+money(dSpend)):null)+tile("Avg CPM",impr?money(dSpend/impr*1000):"—",partialDelivery?("on "+money(dSpend)):null); }
       document.getElementById("spTiles").innerHTML=tiles;
       document.getElementById("spBlend").innerHTML=
         '<div><div class="label" style="color:var(--muted)">Cost / join <span style="font-style:italic">· blended</span></div><div class="val">'+(covJoins?money(total/covJoins):"—")+'</div><div style="font-size:11px;color:var(--muted)">'+intf(covJoins)+' joins'+(full?", all channels":" on days with spend")+'</div></div>'+
         '<div><div class="label" style="color:var(--muted)">Contract value / ad $ <span style="font-style:italic">· blended</span></div><div class="val">'+(total&&covVal?money(covVal/total):"—")+'</div><div style="font-size:11px;color:var(--muted)">'+money0(covVal)+' join value'+(full?"":" (est.)")+'</div></div>';
-      document.getElementById("spNote").innerHTML="Blended = tracked spend across <b>"+plats.join(" + ")+"</b> ÷ every completed join "+(full?"in the selected range":"on the "+days.length+" days that have spend data")+". Not a per-channel attributed CPA — individual joins aren't tied to an ad channel yet."+(impr||clicks?(partialDelivery?" CPC/CPM use only API-sourced spend; client-reported monthly totals carry no impressions or clicks.":""):" Impressions/clicks aren't available for client-reported monthly totals.");
+      document.getElementById("spNote").innerHTML="Blended = tracked spend across <b>"+plats.join(" + ")+"</b> ÷ every completed join "+(full?"in the selected range":"on the "+days.length+" days that have spend data")+". Not a per-channel attributed CPA — individual joins aren't tied to an ad channel yet. <b>Spend covers Sneeze It's Meta and Google accounts only</b>; traffic tagged by other advertisers (Eulerity, the VI vendor, a second Meta account) has no spend here, in any period."+(impr||clicks?(partialDelivery?" CPC/CPM use only API-sourced spend; client-reported monthly totals carry no impressions or clicks.":""):" Impressions/clicks aren't available for client-reported monthly totals.");
       var tb=document.querySelector("#spTbl tbody"); tb.innerHTML="";
       (spend.by_campaign||[]).forEach(function(cp){
         var s=Number(cp.spend)||0, ci=Number(cp.impressions)||0, cc=Number(cp.clicks)||0;
@@ -159,10 +177,12 @@
 <script>
 (function(){
   var SB="https://vxfhxgtcwczvoewozgws.supabase.co", KEY="";
+  var GA4_FLOOR="2023-06-25"; // first day woat.org appears in the GA4 property; ga4_traffic starts here
   var intf=function(n){return (Number(n)||0).toLocaleString("en-US");};
   var pct=function(n){return (Number(n)||0).toFixed(1)+"%";};
   var esc=function(s){return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");};
   var dayDiff=function(a,b){return Math.round((new Date(b+"T00:00:00Z")-new Date(a+"T00:00:00Z"))/86400000)+1;};
+  var daysAgo=function(k){var d=new Date();d.setDate(d.getDate()-k);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");};
   var tile=function(l,v,s){return '<div class="tile"><div class="label">'+l+'</div><div class="val">'+v+'</div>'+(s?'<div style="font-size:11px;color:var(--muted);margin-top:2px">'+s+'</div>':'')+'</div>';};
   // KEY is captured from the dashboard's own Supabase request (see the fetch wrap below),
   // so this snippet carries no key of its own and never needs editing if the key rotates.
@@ -263,15 +283,24 @@
       var eng=Number(g.total_engaged_sessions)||0, views=Number(g.total_page_views)||0;
       var days=g.ga4_by_day||[], rangeDays=dayDiff(from,to), full=days.length>=rangeDays;
       var minD=days.length?days[0].day:from, maxD=days.length?days[days.length-1].day:to;
+      // GA4 lags about a day and woat.org only exists in the property from GA4_FLOOR, so a range that
+      // includes today or starts before the floor is never "full" — and neither is a gap. Judge
+      // completeness over the days GA4 could have covered: max(from, floor) → min(to, latest), where
+      // "latest" is the last loaded day but never earlier than two days ago — so a past range is judged
+      // to its own end and a stalled worker shows as a gap. `full` is kept for the funnel note below,
+      // because entries/joins really are clamped to GA4-covered days.
+      var lagFloor=daysAgo(2), latest=(maxD>lagFloor)?maxD:lagFloor;
+      var expFrom=(from>GA4_FLOOR)?from:GA4_FLOOR, expTo=(to<latest)?to:latest;
+      var spanDays=Math.max(1,dayDiff(expFrom,expTo)), contig=days.length>=spanDays;
       var jd=g.icart_by_day||[];
       var covEntries=Number(g.total_entries)||0, covJoins=Number(g.total_joins)||0;
 
       document.getElementById("g4Cap").textContent=
-        (full?("GA4 "+from+" → "+to):("GA4 through "+maxD+" · "+days.length+" of "+rangeDays+" days in range"))+
+        (contig?("GA4 "+minD+" → "+maxD):("GA4 through "+maxD+" · "+days.length+" of "+spanDays+" days between "+expFrom+" and "+expTo))+
         " · woat.org, kiosk excluded · updates daily";
 
       document.getElementById("g4Tiles").innerHTML=
-        tile("Sessions",intf(sessions),full?null:(days.length+" days"))+
+        tile("Sessions",intf(sessions),contig?null:(days.length+" of "+spanDays+" days"))+
         tile("Users",intf(users))+
         tile("New users",intf(newUsers),users?pct(newUsers/users*100)+" of users":null)+
         tile("Engaged sessions",sessions?pct(eng/sessions*100):"—","of sessions")+
@@ -364,6 +393,8 @@
         <option value="ytd">This year</option>
         <option value="2026">2026</option>
         <option value="2025">2025</option>
+        <option value="2024">2024</option>
+        <option value="2023">2023</option>
         <option value="all">All time</option>
         <option value="custom">Custom&hellip;</option>
       </select>
@@ -392,6 +423,7 @@
   </div>
 
   <div id="status" class="note">Connecting to the database&hellip;</div>
+  <div id="dataNotes" style="display:none"></div>
   <section class="kpis" id="kpis" style="display:none"></section>
 
   <!-- Paid ad spend card: reads report_spend + report_filtered; self-hides when there is no spend in range -->
@@ -455,7 +487,7 @@
 
   <div class="card" id="platCard" style="display:none">
     <h2>By platform</h2>
-    <p class="cap">Entries, joins and conversion by checkout channel (credit-card, ACH, in-club kiosk) for the selected range. &ldquo;Untagged&rdquo; = rows from before platform tagging went live.</p>
+    <p class="cap">Entries, joins and conversion by checkout channel (credit-card, ACH, in-club kiosk) for the selected range. &ldquo;Untagged&rdquo; = no platform recorded: all imported history before 2026-07-22, plus a small ongoing trickle of live joins whose lead event never arrived.</p>
     <table id="platTable">
       <thead><tr><th>Platform</th><th>Entries</th><th>Joins</th><th>Lost</th><th>Conv.</th><th>Join value</th></tr></thead>
       <tbody></tbody>
@@ -466,6 +498,17 @@
     <h2>Campaign sources (UTM)</h2>
     <p class="cap">Leads, joins and conversion by source / medium / campaign / ad account / audience for the selected range. &ldquo;Untagged&rdquo; = visits with no utm_* on the URL (all traffic before UTM tracking went live).</p>
     <label class="utmtoggle"><input type="checkbox" id="hideUntagged"> Hide untagged</label>
+    <!-- Source-family summary (2026-09-18): one advertiser per row. google + google_si are one advertiser's
+         campaigns under two tagging conventions; eulerity and eulerity/ are one source. Display grouping
+         only — the detailed rows below are untouched, so both raw tags stay visible. -->
+    <div id="utmFam" style="display:none">
+      <div class="label" style="color:var(--muted);margin:4px 0 2px;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em">By source family <span style="font-weight:400;text-transform:none;letter-spacing:0">&middot; one advertiser per row &middot; the detailed rows below are unchanged</span></div>
+      <table id="utmFamilyTable">
+        <thead><tr><th>Source family</th><th>Raw sources</th><th>Entries</th><th>Share</th><th>Joins</th><th>Lost</th><th>Conv.</th><th>Join value</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="cap" id="utmFamNote" style="margin:-8px 0 14px">SI = Sneeze It&rsquo;s campaigns (plain <code>google</code> is Sneeze It&rsquo;s brand / evergreen search). VI = a second vendor tagging alongside. <code>fb</code> / <code>ig</code> are Facebook and Instagram links tagged outside either convention and are split by medium: <b>paid</b> rows carry Meta campaign IDs from a Meta ad account whose spend this dashboard does not load; <b>social</b> rows are organic. Both are kept separate from Meta&nbsp;(SI).</p>
+    </div>
     <table id="utmTable">
       <thead><tr><th>Source</th><th>Medium</th><th>Campaign</th><th>Ad account</th><th>Audience</th><th>Entries</th><th>Joins</th><th>Lost</th><th>Conv.</th><th>Join value</th></tr></thead>
       <tbody></tbody>
@@ -498,6 +541,14 @@ th[data-sort] .arw{font-size:9px;margin-left:3px;color:var(--blue)}
    ellipsis the overflow; the full value stays available as a tooltip. */
 #utmTable{width:100%}
 #utmTable th:nth-child(-n+5),#utmTable td:nth-child(-n+5){max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Source-family strip: same overflow discipline as the grid. Two text columns (family, raw sources) are
+   capped and ellipsised with the full value in the tooltip, so a 120-char junk source cannot widen the
+   table past the card (the failure mode of 2026-08-20). Keep the nth-child bound equal to the number of
+   text columns if columns are ever added. */
+#utmFamilyTable{width:100%;margin:0 0 16px}
+#utmFamilyTable th:nth-child(-n+2),#utmFamilyTable td:nth-child(-n+2){max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#utmFamilyTable th:nth-child(2),#utmFamilyTable td:nth-child(2){text-align:left;font-variant-numeric:normal;color:var(--text2)}
+#utmFamilyTable tr.fam-other td,#utmFamilyTable tr.fam-untagged td{color:var(--text2)}
 .msel{position:relative;display:inline-block}
 #locBtn{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .msel-panel{position:absolute;top:calc(100% + 4px);left:0;z-index:30;width:264px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.28);padding:8px;display:none}
@@ -527,6 +578,9 @@ window.showTip=showTip;window.hideTip=hideTip;
 
 const pad=x=>String(x).padStart(2,"0");
 const ymd=d=>d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+// First day of loaded history (2023 and 2024 were imported 2026-09-16). "All time" starts here so
+// coverage captions read "N of M days" against real days, not against years that have no data.
+const DATA_START="2023-01-01";
 function presetRange(p){
   const today=new Date(), t=ymd(today);
   const back=k=>{const d=new Date(today);d.setDate(d.getDate()-k);return ymd(d);};
@@ -538,7 +592,9 @@ function presetRange(p){
   if(p==="ytd")return[today.getFullYear()+"-01-01",tmr];
   if(p==="2026")return["2026-01-01","2026-12-31"];
   if(p==="2025")return["2025-01-01","2025-12-31"];
-  if(p==="all")return["2015-01-01",tmr];
+  if(p==="2024")return["2024-01-01","2024-12-31"];
+  if(p==="2023")return["2023-01-01","2023-12-31"];
+  if(p==="all")return[DATA_START,tmr];
   return null;
 }
 
@@ -607,7 +663,33 @@ async function load(from,to){
 function rangeLabel(){
   const todayStr=ymd(new Date()), toStr=(DATA.to>todayStr)?todayStr:DATA.to;
   const f=new Date(DATA.from+"T00:00:00"), t=new Date(toStr+"T00:00:00"), o={month:"short",day:"numeric"};
-  return f.toLocaleDateString("en-US",o)+" – "+t.toLocaleDateString("en-US",Object.assign({year:"numeric"},o));
+  // Show the start year too when the range crosses a year boundary ("Dec 1, 2024 – Jan 31, 2025"),
+  // otherwise keep the short form ("Jan 1 – Sep 16, 2026"). Without this, "All time" read as year-to-date.
+  const fo=(f.getFullYear()!==t.getFullYear())?Object.assign({year:"numeric"},o):o;
+  return f.toLocaleDateString("en-US",fo)+" – "+t.toLocaleDateString("en-US",Object.assign({year:"numeric"},o));
+}
+
+// Data caveats that must reach a client-facing reader. They live server-side in
+// public.data_coverage_notes (read through the report_coverage_notes RPC), so the MCP and every other
+// consumer see the same notes and a new caveat is a table row, not a commit. Only rows flagged '*'
+// (= the data in that period is INCOMPLETE) render here; informational rows (flag '') are left to the
+// RPC payloads. The note text is rendered verbatim — by convention it names its own period
+// ("July 2024* is UNDER-REPORTED: …"), so no label is generated here. If the RPC is unavailable, the
+// page shows no notes and nothing else changes.
+let NOTES_KEY=null;
+async function renderDataNotes(){
+  const host=document.getElementById("dataNotes"); if(!host||!RANGE) return;
+  const key=RANGE[0]+"|"+RANGE[1]; NOTES_KEY=key;
+  try{
+    const r=await fetch(SUPA+"/rest/v1/rpc/report_coverage_notes",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify({p_from:RANGE[0],p_to:RANGE[1]})});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const all=await r.json();
+    if(NOTES_KEY!==key) return; // a newer range loaded while this was in flight
+    const hits=(Array.isArray(all)?all:[]).filter(x=>x&&x.flag==="*"&&x.period_from&&x.period_to&&x.note)
+      .sort((a,b)=>a.period_from<b.period_from?-1:(a.period_from>b.period_from?1:0));
+    host.innerHTML=hits.map(x=>`<div class="note caveat" data-code="${escAttr(x.code||"")}">${esc(x.note)}</div>`).join("");
+    host.style.display=hits.length?"block":"none";
+  }catch(_){ if(NOTES_KEY===key){ host.innerHTML=""; host.style.display="none"; } }
 }
 
 function kpiDefs(s){
@@ -662,6 +744,7 @@ function render(){
   document.getElementById("sub").textContent="iCart online joins · "+rangeLabel()+(PLANFILTER?(" · "+PLANFILTER+" campaign"):"")+(ACCOUNTFILTER?(" · "+ACCOUNTFILTER):"")+(PLATFILTER?(" · "+({cc:"Credit card",ach:"ACH",kiosk:"Kiosk"}[PLATFILTER]||PLATFILTER)):"")+(LOCFILTER.length?(" · "+(LOCFILTER.length===1?(NAMES[LOCFILTER[0]]||("Club "+LOCFILTER[0])):(LOCFILTER.length+" locations"))):"");
   document.getElementById("kpis").innerHTML=kpiDefs(s).map(k=>`<div class="tile${k.muted?" muted":""}"${k.title?` title="${escAttr(k.title)}"`:""}><div class="label">${k.label}</div><div class="val">${k.val}</div>${SHOWDELTAS?`<div class="delta" id="d_${k.key}"></div>`:""}</div>`).join("");
   if(SHOWDELTAS) applyDeltas();
+  renderDataNotes();
   drawLine(); renderPlans(); drawBars(); renderPlatforms(); renderUtms();
   document.getElementById("foot").textContent="Live from the iCart database · unique-person counts · range "+DATA.from+" to "+DATA.to+".";
 }
@@ -678,10 +761,81 @@ async function renderUtms(){
     const isUntagged=x=>x.utm_account==="(none)"&&x.utm_source==="(none)"&&x.utm_medium==="(none)"&&x.utm_campaign==="(none)"&&x.utm_audience==="(none)";
     const rows=UTMHIDE?all.filter(x=>!isUntagged(x)):all;
     card.style.display="block";
-    if(!rows.length){ tb.innerHTML=`<tr><td colspan="9" style="color:var(--muted)">No tagged campaigns in this range.</td></tr>`; return; }
+    const famHost=document.getElementById("utmFam");
+    if(!rows.length){ if(famHost) famHost.style.display="none"; tb.innerHTML=`<tr><td colspan="10" style="color:var(--muted)">No tagged campaigns in this range.</td></tr>`; return; }
+    renderUtmFamilies(rows, famHost);
     const lab=v=>(v==="(none)"?'<span style="color:var(--muted)">Untagged</span>':esc(v));
     tb.innerHTML=rows.map(x=>`<tr><td title="${escAttr(x.utm_source)}">${lab(x.utm_source)}</td><td title="${escAttr(x.utm_medium)}">${lab(x.utm_medium)}</td><td title="${escAttr(x.utm_campaign)}">${lab(x.utm_campaign)}</td><td title="${escAttr(x.utm_account)}">${lab(x.utm_account)}</td><td title="${escAttr(x.utm_audience)}">${lab(x.utm_audience)}</td><td>${fmt(x.entries)}</td><td>${fmt(x.joins)}</td><td>${fmt(x.lost_joins)}</td><td>${pct(x.conversion_rate)}</td><td>${money(x.join_contract_value)}</td></tr>`).join("");
   }catch(e){ card.style.display="none"; }
+}
+
+// ---- Source families (2026-09-18) --------------------------------------------------------------
+// One advertiser per row, built from the report_utms rows the grid is about to show (so "Hide untagged"
+// applies to both). Rows from report_utms are already one person per row — the RPC dedups per person
+// BEFORE grouping by UTM combination — so summing across combinations never double counts anyone.
+// This is a display grouping: the raw rows below are untouched and both tags of a merged pair stay
+// visible, which is the audit trail. Adding a tag to a family is one entry in FAMILY_LABEL.
+// Labelling, in priority order:
+//  1. FAMILY_LABEL — explicit overrides. Plain `google` is Sneeze It's brand/evergreen search campaign in
+//     Sneeze It's own Google account (verified 2026-09-18), so it belongs with google_si.
+//  2. Vendor suffix — `<platform>_si` → "<Platform> (SI)", `<platform>_vi` → "<Platform> (VI)". SI = Sneeze It.
+//     VI = a second vendor tagging alongside (meta_vi, tiktok_vi); identity being confirmed by Nate.
+//  3. Bare platform tags with no vendor suffix — fb, ig — are Facebook/Instagram links tagged OUTSIDE either
+//     convention. They are deliberately NOT merged into Meta (SI): that would fold non-SI traffic into
+//     Sneeze It's paid Meta. They are also SPLIT BY MEDIUM, because one tag carries both kinds of traffic:
+//     live `ig` is ~72 rows medium=social (organic) and ~7 medium=paid (Meta campaign IDs from a second
+//     Meta ad account this dashboard does not pull spend for); `fb` is all paid. One label for both would
+//     be the same organic-into-paid merge. Labelled "<Platform> (<tag> · paid|<medium>|no medium)".
+//  4. Anything else: the raw source.
+const FAMILY_LABEL={ google:"Google (SI)", eulerity:"Eulerity" };
+const PLATFORM_NAME={ google:"Google", meta:"Meta", tiktok:"TikTok", fb:"Facebook", ig:"Instagram", facebook:"Facebook", instagram:"Instagram" };
+const VENDOR_SUFFIX={ si:"SI", vi:"VI" };
+const MAX_RAW_ROWS=4;                              // unrecognised raw sources shown before the rest fold into "Other"
+const famKey=src=>{ const s=String(src==null?"":src).trim().toLowerCase().replace(/\/+$/,""); return (s===""||s==="(none)")?"(none)":s; };
+// → {label, known}. Recognised families (rules 1–3) always get their own row; only rule-4 raw sources are
+//   eligible to fold into "Other", so a vendor's small platform (e.g. tiktok_vi) is never hidden in the tail.
+// Medium class for the bare-platform split. The paid test is GA4's own paid-medium pattern.
+const isPaidMedium=m=>/^(.*cp.*|ppc|retargeting|paid.*)$/i.test(String(m||""));
+const mediumClass=m=>{ const v=String(m==null?"":m).trim().toLowerCase(); if(v===""||v==="(none)") return "no medium"; return isPaidMedium(v)?"paid":v; };
+function famInfo(key, medium){
+  if(key==="(none)") return {label:"Untagged",known:true};
+  if(FAMILY_LABEL[key]) return {label:FAMILY_LABEL[key],known:true};
+  const m=key.match(/^([a-z0-9.-]+)_(si|vi)$/);
+  if(m) return {label:(PLATFORM_NAME[m[1]]||m[1])+" ("+VENDOR_SUFFIX[m[2]]+")",known:true};
+  if(key==="fb"||key==="ig"||key==="facebook"||key==="instagram") return {label:PLATFORM_NAME[key]+" ("+key+" · "+mediumClass(medium)+")",known:true};
+  return {label:key,known:false};
+}
+function renderUtmFamilies(rows, host){
+  const ftb=document.querySelector("#utmFamilyTable tbody"); if(!host||!ftb) return;
+  const fams={};
+  rows.forEach(x=>{
+    const k=famKey(x.utm_source), info=famInfo(k, x.utm_medium), label=info.label;
+    const f=fams[label]||(fams[label]={label,known:info.known,sources:new Set(),entries:0,joins:0,lost:0,value:0});
+    f.sources.add(x.utm_source==="(none)"||x.utm_source==null?"(none)":String(x.utm_source));
+    f.entries+=n(x.entries); f.joins+=n(x.joins); f.lost+=n(x.lost_joins); f.value+=n(x.join_contract_value);
+  });
+  const all=Object.values(fams).sort((a,b)=>b.entries-a.entries);
+  const totalEntries=all.reduce((a,f)=>a+f.entries,0);
+  const untagged=all.find(f=>f.label==="Untagged");
+  const known=all.filter(f=>f!==untagged&&f.known), raw=all.filter(f=>f!==untagged&&!f.known);
+  const head=known.concat(raw.slice(0,MAX_RAW_ROWS)).sort((a,b)=>b.entries-a.entries), tail=raw.slice(MAX_RAW_ROWS);
+  if(tail.length){
+    const o={label:"",sources:new Set(),entries:0,joins:0,lost:0,value:0,other:true};
+    tail.forEach(f=>{ f.sources.forEach(s=>o.sources.add(s)); o.entries+=f.entries; o.joins+=f.joins; o.lost+=f.lost; o.value+=f.value; });
+    o.label="Other ("+o.sources.size+(o.sources.size===1?" source":" sources")+")";   // counts raw sources, not folded families (a family can hold slash variants)
+    head.push(o);
+  }
+  if(untagged) head.push(untagged);                // pinned last: it is the biggest bucket and not an advertiser
+  if(head.length<2){ host.style.display="none"; ftb.innerHTML=""; return; }   // one family → nothing to summarise
+  ftb.innerHTML=head.map(f=>{
+    const srcs=[...f.sources].sort().join(", ");
+    const cls=f.other?"fam-other":(f.label==="Untagged"?"fam-untagged":"");
+    return `<tr class="${cls}" data-family="${escAttr(f.label)}"><td title="${escAttr(f.label)}">${esc(f.label)}</td>`+
+      `<td title="${escAttr(srcs)}">${f.label==="Untagged"?'<span style="color:var(--muted)">—</span>':esc(srcs)}</td>`+
+      `<td>${fmt(f.entries)}</td><td>${totalEntries?pct(f.entries/totalEntries*100):"—"}</td><td>${fmt(f.joins)}</td><td>${fmt(f.lost)}</td>`+
+      `<td>${f.entries?pct(f.joins/f.entries*100):"—"}</td><td>${money(f.value)}</td></tr>`;
+  }).join("");
+  host.style.display="block";
 }
 
 async function renderPlatforms(){
