@@ -5,7 +5,8 @@
 # at 09:00/10:00 and the worker-health check at 12:15). It loads the LIVE page with the LIVE RPCs and asserts what a
 # reviewer would check by hand: tiles render, the spend caption and blended note agree, the source-family strip
 # equals the page's own rules computed on the live report_utms rows, the amber notes are the '*' coverage rows
-# verbatim, and there are no page/console errors. A red run is a signal to look, never a deploy — this workflow
+# verbatim, and there are no page/console errors. The two targets run one after the other (max-parallel: 1) so the
+# test never loads the heavy All-time query from two browsers at once — that is what run #1 died of. A red run is a signal to look, never a deploy — this workflow
 # changes nothing. tools/smoke-live.js has the assertions; tools/expect-strip.js is the offline twin.
 name: Live smoke test
 
@@ -25,6 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      max-parallel: 1   # root then dev: two browsers loading "All time" at once tripped the anon 10 s statement_timeout (run #1)
       matrix:
         target:
           - { name: root, url: "https://reports.woat.org/" }
@@ -54,3 +56,10 @@ jobs:
           echo "::warning::served page still differs from the repo after 4 min (served $got, repo $want) — testing what is served"
       - name: Smoke ${{ matrix.target.name }}
         run: node tools/smoke-live.js "${{ matrix.target.url }}"
+      - name: Keep the crash screenshot (failed runs only)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-${{ matrix.target.name }}-crash
+          path: smoke-crash.png
+          if-no-files-found: ignore
