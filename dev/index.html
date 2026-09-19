@@ -121,7 +121,7 @@
       document.getElementById("spBlend").innerHTML=
         '<div><div class="label" style="color:var(--muted)">Cost / join <span style="font-style:italic">· blended</span></div><div class="val">'+(covJoins?money(total/covJoins):"—")+'</div><div style="font-size:11px;color:var(--muted)">'+intf(covJoins)+' joins'+(full?", all channels":" on days with spend")+'</div></div>'+
         '<div><div class="label" style="color:var(--muted)">Contract value / ad $ <span style="font-style:italic">· blended</span></div><div class="val">'+(total&&covVal?money(covVal/total):"—")+'</div><div style="font-size:11px;color:var(--muted)">'+money0(covVal)+' join value'+(full?"":" (est.)")+'</div></div>';
-      document.getElementById("spNote").innerHTML="Blended = tracked spend across <b>"+plats.join(" + ")+"</b> ÷ every completed join "+(full?"in the selected range":"on the "+days.length+" days that have spend data")+". Not a per-channel attributed CPA — individual joins aren't tied to an ad channel yet."+(impr||clicks?(partialDelivery?" CPC/CPM use only API-sourced spend; client-reported monthly totals carry no impressions or clicks.":""):" Impressions/clicks aren't available for client-reported monthly totals.");
+      document.getElementById("spNote").innerHTML="Blended = tracked spend across <b>"+plats.join(" + ")+"</b> ÷ every completed join "+(full?"in the selected range":"on the "+days.length+" days that have spend data")+". Not a per-channel attributed CPA — individual joins aren't tied to an ad channel yet. <b>Spend covers Sneeze It's Meta and Google accounts only</b>; traffic tagged by other advertisers (Eulerity, the VI vendor, a second Meta account) has no spend here, in any period."+(impr||clicks?(partialDelivery?" CPC/CPM use only API-sourced spend; client-reported monthly totals carry no impressions or clicks.":""):" Impressions/clicks aren't available for client-reported monthly totals.");
       var tb=document.querySelector("#spTbl tbody"); tb.innerHTML="";
       (spend.by_campaign||[]).forEach(function(cp){
         var s=Number(cp.spend)||0, ci=Number(cp.impressions)||0, cc=Number(cp.clicks)||0;
@@ -498,6 +498,17 @@
     <h2>Campaign sources (UTM)</h2>
     <p class="cap">Leads, joins and conversion by source / medium / campaign / ad account / audience for the selected range. &ldquo;Untagged&rdquo; = visits with no utm_* on the URL (all traffic before UTM tracking went live).</p>
     <label class="utmtoggle"><input type="checkbox" id="hideUntagged"> Hide untagged</label>
+    <!-- Source-family summary (2026-09-18): one advertiser per row. google + google_si are one advertiser's
+         campaigns under two tagging conventions; eulerity and eulerity/ are one source. Display grouping
+         only — the detailed rows below are untouched, so both raw tags stay visible. -->
+    <div id="utmFam" style="display:none">
+      <div class="label" style="color:var(--muted);margin:4px 0 2px;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em">By source family <span style="font-weight:400;text-transform:none;letter-spacing:0">&middot; one advertiser per row &middot; the detailed rows below are unchanged</span></div>
+      <table id="utmFamilyTable">
+        <thead><tr><th>Source family</th><th>Raw sources</th><th>Entries</th><th>Share</th><th>Joins</th><th>Lost</th><th>Conv.</th><th>Join value</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="cap" id="utmFamNote" style="margin:-8px 0 14px">SI = Sneeze It&rsquo;s campaigns (plain <code>google</code> is Sneeze It&rsquo;s brand / evergreen search). VI = a second vendor tagging alongside. <code>fb</code> / <code>ig</code> are Facebook and Instagram links tagged outside either convention and are split by medium: <b>paid</b> rows carry Meta campaign IDs from a Meta ad account whose spend this dashboard does not load; <b>social</b> rows are organic. Both are kept separate from Meta&nbsp;(SI).</p>
+    </div>
     <table id="utmTable">
       <thead><tr><th>Source</th><th>Medium</th><th>Campaign</th><th>Ad account</th><th>Audience</th><th>Entries</th><th>Joins</th><th>Lost</th><th>Conv.</th><th>Join value</th></tr></thead>
       <tbody></tbody>
@@ -530,6 +541,14 @@ th[data-sort] .arw{font-size:9px;margin-left:3px;color:var(--blue)}
    ellipsis the overflow; the full value stays available as a tooltip. */
 #utmTable{width:100%}
 #utmTable th:nth-child(-n+5),#utmTable td:nth-child(-n+5){max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* Source-family strip: same overflow discipline as the grid. Two text columns (family, raw sources) are
+   capped and ellipsised with the full value in the tooltip, so a 120-char junk source cannot widen the
+   table past the card (the failure mode of 2026-08-20). Keep the nth-child bound equal to the number of
+   text columns if columns are ever added. */
+#utmFamilyTable{width:100%;margin:0 0 16px}
+#utmFamilyTable th:nth-child(-n+2),#utmFamilyTable td:nth-child(-n+2){max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#utmFamilyTable th:nth-child(2),#utmFamilyTable td:nth-child(2){text-align:left;font-variant-numeric:normal;color:var(--text2)}
+#utmFamilyTable tr.fam-other td,#utmFamilyTable tr.fam-untagged td{color:var(--text2)}
 .msel{position:relative;display:inline-block}
 #locBtn{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .msel-panel{position:absolute;top:calc(100% + 4px);left:0;z-index:30;width:264px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.28);padding:8px;display:none}
@@ -742,10 +761,81 @@ async function renderUtms(){
     const isUntagged=x=>x.utm_account==="(none)"&&x.utm_source==="(none)"&&x.utm_medium==="(none)"&&x.utm_campaign==="(none)"&&x.utm_audience==="(none)";
     const rows=UTMHIDE?all.filter(x=>!isUntagged(x)):all;
     card.style.display="block";
-    if(!rows.length){ tb.innerHTML=`<tr><td colspan="9" style="color:var(--muted)">No tagged campaigns in this range.</td></tr>`; return; }
+    const famHost=document.getElementById("utmFam");
+    if(!rows.length){ if(famHost) famHost.style.display="none"; tb.innerHTML=`<tr><td colspan="10" style="color:var(--muted)">No tagged campaigns in this range.</td></tr>`; return; }
+    renderUtmFamilies(rows, famHost);
     const lab=v=>(v==="(none)"?'<span style="color:var(--muted)">Untagged</span>':esc(v));
     tb.innerHTML=rows.map(x=>`<tr><td title="${escAttr(x.utm_source)}">${lab(x.utm_source)}</td><td title="${escAttr(x.utm_medium)}">${lab(x.utm_medium)}</td><td title="${escAttr(x.utm_campaign)}">${lab(x.utm_campaign)}</td><td title="${escAttr(x.utm_account)}">${lab(x.utm_account)}</td><td title="${escAttr(x.utm_audience)}">${lab(x.utm_audience)}</td><td>${fmt(x.entries)}</td><td>${fmt(x.joins)}</td><td>${fmt(x.lost_joins)}</td><td>${pct(x.conversion_rate)}</td><td>${money(x.join_contract_value)}</td></tr>`).join("");
   }catch(e){ card.style.display="none"; }
+}
+
+// ---- Source families (2026-09-18) --------------------------------------------------------------
+// One advertiser per row, built from the report_utms rows the grid is about to show (so "Hide untagged"
+// applies to both). Rows from report_utms are already one person per row — the RPC dedups per person
+// BEFORE grouping by UTM combination — so summing across combinations never double counts anyone.
+// This is a display grouping: the raw rows below are untouched and both tags of a merged pair stay
+// visible, which is the audit trail. Adding a tag to a family is one entry in FAMILY_LABEL.
+// Labelling, in priority order:
+//  1. FAMILY_LABEL — explicit overrides. Plain `google` is Sneeze It's brand/evergreen search campaign in
+//     Sneeze It's own Google account (verified 2026-09-18), so it belongs with google_si.
+//  2. Vendor suffix — `<platform>_si` → "<Platform> (SI)", `<platform>_vi` → "<Platform> (VI)". SI = Sneeze It.
+//     VI = a second vendor tagging alongside (meta_vi, tiktok_vi); identity being confirmed by Nate.
+//  3. Bare platform tags with no vendor suffix — fb, ig — are Facebook/Instagram links tagged OUTSIDE either
+//     convention. They are deliberately NOT merged into Meta (SI): that would fold non-SI traffic into
+//     Sneeze It's paid Meta. They are also SPLIT BY MEDIUM, because one tag carries both kinds of traffic:
+//     live `ig` is ~72 rows medium=social (organic) and ~7 medium=paid (Meta campaign IDs from a second
+//     Meta ad account this dashboard does not pull spend for); `fb` is all paid. One label for both would
+//     be the same organic-into-paid merge. Labelled "<Platform> (<tag> · paid|<medium>|no medium)".
+//  4. Anything else: the raw source.
+const FAMILY_LABEL={ google:"Google (SI)", eulerity:"Eulerity" };
+const PLATFORM_NAME={ google:"Google", meta:"Meta", tiktok:"TikTok", fb:"Facebook", ig:"Instagram", facebook:"Facebook", instagram:"Instagram" };
+const VENDOR_SUFFIX={ si:"SI", vi:"VI" };
+const MAX_RAW_ROWS=4;                              // unrecognised raw sources shown before the rest fold into "Other"
+const famKey=src=>{ const s=String(src==null?"":src).trim().toLowerCase().replace(/\/+$/,""); return (s===""||s==="(none)")?"(none)":s; };
+// → {label, known}. Recognised families (rules 1–3) always get their own row; only rule-4 raw sources are
+//   eligible to fold into "Other", so a vendor's small platform (e.g. tiktok_vi) is never hidden in the tail.
+// Medium class for the bare-platform split. The paid test is GA4's own paid-medium pattern.
+const isPaidMedium=m=>/^(.*cp.*|ppc|retargeting|paid.*)$/i.test(String(m||""));
+const mediumClass=m=>{ const v=String(m==null?"":m).trim().toLowerCase(); if(v===""||v==="(none)") return "no medium"; return isPaidMedium(v)?"paid":v; };
+function famInfo(key, medium){
+  if(key==="(none)") return {label:"Untagged",known:true};
+  if(FAMILY_LABEL[key]) return {label:FAMILY_LABEL[key],known:true};
+  const m=key.match(/^([a-z0-9.-]+)_(si|vi)$/);
+  if(m) return {label:(PLATFORM_NAME[m[1]]||m[1])+" ("+VENDOR_SUFFIX[m[2]]+")",known:true};
+  if(key==="fb"||key==="ig"||key==="facebook"||key==="instagram") return {label:PLATFORM_NAME[key]+" ("+key+" · "+mediumClass(medium)+")",known:true};
+  return {label:key,known:false};
+}
+function renderUtmFamilies(rows, host){
+  const ftb=document.querySelector("#utmFamilyTable tbody"); if(!host||!ftb) return;
+  const fams={};
+  rows.forEach(x=>{
+    const k=famKey(x.utm_source), info=famInfo(k, x.utm_medium), label=info.label;
+    const f=fams[label]||(fams[label]={label,known:info.known,sources:new Set(),entries:0,joins:0,lost:0,value:0});
+    f.sources.add(x.utm_source==="(none)"||x.utm_source==null?"(none)":String(x.utm_source));
+    f.entries+=n(x.entries); f.joins+=n(x.joins); f.lost+=n(x.lost_joins); f.value+=n(x.join_contract_value);
+  });
+  const all=Object.values(fams).sort((a,b)=>b.entries-a.entries);
+  const totalEntries=all.reduce((a,f)=>a+f.entries,0);
+  const untagged=all.find(f=>f.label==="Untagged");
+  const known=all.filter(f=>f!==untagged&&f.known), raw=all.filter(f=>f!==untagged&&!f.known);
+  const head=known.concat(raw.slice(0,MAX_RAW_ROWS)).sort((a,b)=>b.entries-a.entries), tail=raw.slice(MAX_RAW_ROWS);
+  if(tail.length){
+    const o={label:"",sources:new Set(),entries:0,joins:0,lost:0,value:0,other:true};
+    tail.forEach(f=>{ f.sources.forEach(s=>o.sources.add(s)); o.entries+=f.entries; o.joins+=f.joins; o.lost+=f.lost; o.value+=f.value; });
+    o.label="Other ("+o.sources.size+(o.sources.size===1?" source":" sources")+")";   // counts raw sources, not folded families (a family can hold slash variants)
+    head.push(o);
+  }
+  if(untagged) head.push(untagged);                // pinned last: it is the biggest bucket and not an advertiser
+  if(head.length<2){ host.style.display="none"; ftb.innerHTML=""; return; }   // one family → nothing to summarise
+  ftb.innerHTML=head.map(f=>{
+    const srcs=[...f.sources].sort().join(", ");
+    const cls=f.other?"fam-other":(f.label==="Untagged"?"fam-untagged":"");
+    return `<tr class="${cls}" data-family="${escAttr(f.label)}"><td title="${escAttr(f.label)}">${esc(f.label)}</td>`+
+      `<td title="${escAttr(srcs)}">${f.label==="Untagged"?'<span style="color:var(--muted)">—</span>':esc(srcs)}</td>`+
+      `<td>${fmt(f.entries)}</td><td>${totalEntries?pct(f.entries/totalEntries*100):"—"}</td><td>${fmt(f.joins)}</td><td>${fmt(f.lost)}</td>`+
+      `<td>${f.entries?pct(f.joins/f.entries*100):"—"}</td><td>${money(f.value)}</td></tr>`;
+  }).join("");
+  host.style.display="block";
 }
 
 async function renderPlatforms(){
