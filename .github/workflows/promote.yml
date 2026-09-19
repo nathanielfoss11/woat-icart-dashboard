@@ -1,0 +1,81 @@
+# Promote dev/index.html → index.html (production, reports.woat.org).
+#
+# Nate's click is still the production deploy: Actions → "Promote dev to root" → Run workflow → type "promote".
+# What changes: the copy is done by the workflow, so it cannot land in the wrong folder, and the commit message
+# records the md5 of what went live. Nothing else in the repo is touched. GitHub Pages redeploys on the push.
+#
+# Rollback: Actions → "Promote dev to root" with mode=rollback restores index.html from the previous commit.
+name: Promote dev to root
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "promote" to copy dev/index.html over index.html (or "rollback" to restore the previous index.html)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: write   # to start the "Live smoke test" run after the push (see the last step for why)
+
+concurrency:
+  group: promote
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the confirmation word
+        run: |
+          case "${{ inputs.confirm }}" in
+            promote|rollback) echo "mode=${{ inputs.confirm }}" >> "$GITHUB_ENV" ;;
+            *) echo "Refusing: type exactly 'promote' or 'rollback'."; exit 1 ;;
+          esac
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Promote
+        if: env.mode == 'promote'
+        run: |
+          set -euo pipefail
+          test -f dev/index.html || { echo "dev/index.html missing"; exit 1; }
+          if cmp -s dev/index.html index.html; then
+            echo "index.html is already identical to dev/index.html — nothing to promote."; exit 0
+          fi
+          # the file must be a complete page: same guard the harness uses (5 inline script blocks parse)
+          grep -c '<script' dev/index.html | xargs -I{} sh -c 'test {} -ge 3 || { echo "dev/index.html does not look like the dashboard"; exit 1; }'
+          before=$(md5sum index.html | cut -c1-32); after=$(md5sum dev/index.html | cut -c1-32)
+          cp dev/index.html index.html
+          git config user.name  "promote-bot"
+          git config user.email "promote-bot@users.noreply.github.com"
+          git add index.html
+          git commit -m "Promote dev/index.html → index.html" -m "root was ${before}, now ${after} (identical to dev/index.html). Triggered by ${GITHUB_ACTOR} via workflow_dispatch."
+          git push
+          echo "Promoted. root md5 ${before} → ${after}"
+
+      - name: Rollback
+        if: env.mode == 'rollback'
+        run: |
+          set -euo pipefail
+          git show HEAD~1:index.html > /tmp/prev.html
+          before=$(md5sum index.html | cut -c1-32); after=$(md5sum /tmp/prev.html | cut -c1-32)
+          if [ "$before" = "$after" ]; then echo "Previous commit has the same index.html — nothing to roll back."; exit 0; fi
+          cp /tmp/prev.html index.html
+          git config user.name  "promote-bot"
+          git config user.email "promote-bot@users.noreply.github.com"
+          git add index.html
+          git commit -m "Rollback index.html to previous commit" -m "root was ${before}, now ${after}. Triggered by ${GITHUB_ACTOR} via workflow_dispatch."
+          git push
+          echo "Rolled back. root md5 ${before} → ${after}"
+
+      # A push made with the workflow's own token does NOT fire other workflows' `on: push` (GitHub rule), so the
+      # smoke test would otherwise never see a promotion. workflow_dispatch is the exception to that rule, so we
+      # start it by hand here. smoke.yml waits for Pages to serve the pushed commit before asserting.
+      - name: Start the live smoke test against what is now served
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run smoke.yml --ref "${GITHUB_REF_NAME}" && echo "smoke run requested — see Actions → Live smoke test"
