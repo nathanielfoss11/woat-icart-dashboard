@@ -489,6 +489,14 @@
     </table>
   </div>
 
+  <!-- Checkout errors card (2026-09-24): reads report_checkout_errors (anon, no personal data);
+       signed-in users also get name / email / phone from report_checkout_errors_detail. -->
+  <div class="card" id="errCard" style="display:none">
+    <h2>Checkout errors</h2>
+    <p class="cap" id="errCap">Every time someone tried to get through checkout and was shown an error: pressing Join and getting an error back instead of the thank-you page, or being stopped by blank or invalid fields, or reaching step 2 on a plan whose pricing came up blank.</p>
+    <div id="errBody"></div>
+  </div>
+
   <div class="card" id="platCard" style="display:none">
     <h2>By platform</h2>
     <p class="cap">Entries, joins and conversion by checkout channel (credit-card, ACH, in-club kiosk) for the selected range. &ldquo;Untagged&rdquo; = no platform recorded: all imported history before 2026-07-22, plus a small ongoing trickle of live joins whose lead event never arrived.</p>
@@ -749,7 +757,7 @@ function render(){
   document.getElementById("kpis").innerHTML=kpiDefs(s).map(k=>`<div class="tile${k.muted?" muted":""}"${k.title?` title="${escAttr(k.title)}"`:""}><div class="label">${k.label}</div><div class="val">${k.val}</div>${SHOWDELTAS?`<div class="delta" id="d_${k.key}"></div>`:""}</div>`).join("");
   if(SHOWDELTAS) applyDeltas();
   renderDataNotes();
-  drawLine(); renderPlans(); drawBars(); renderPlatforms(); renderUtms();
+  drawLine(); renderPlans(); drawBars(); renderPlatforms(); renderUtms(); renderErrors();
   document.getElementById("foot").textContent="Live from the iCart database · unique-person counts · range "+DATA.from+" to "+DATA.to+".";
 }
 
@@ -856,6 +864,142 @@ async function renderPlatforms(){
     const lab=p=>(p==="(untagged)"?'<span style="color:var(--muted)">Untagged</span>':(PLAT[p]||esc(p)));
     tb.innerHTML=rows.map(x=>`<tr><td>${lab(x.platform)}</td><td>${fmt(x.entries)}</td><td>${fmt(x.joins)}</td><td>${fmt(x.lost_joins)}</td><td>${pct(x.conversion_rate)}</td><td>${money(x.join_contract_value)}</td></tr>`).join("");
   }catch(e){ card.style.display="none"; }
+}
+
+/* ---------- Checkout errors card (2026-09-24) ----------
+   One RPC, report_checkout_errors, with the page's own range and plan / club / platform filters.
+   Signed-in users additionally get the person (name, email, phone) from report_checkout_errors_detail.
+   Failure hides the card's body behind a one-line note and never retries (see backlog item 16). */
+let ERR_DATA=null, ERR_DETAIL=null, ERR_KEY=null, ERR_SHOW=100;
+const ERR_FIELD={firstName:"First name",lastName:"Last name",middleInitial:"Middle initial",email:"Email",cellPhone:"Mobile phone",
+  optIn:"Opt-in box",addressLine1:"Address",addressLine2:"Address line 2",city:"City",state:"State",zipCode:"ZIP",birthday:"Birthday",
+  country:"Country",gender:"Gender",agreementTerms:"Terms box",agreementPrivacy:"Privacy box",agreementNote:"Agreement box",
+  sameBilling:"Same-billing box",draftAccountType:"Bank account type",draftAccountNumber:"Bank account number",
+  todayCcFirstName:"Card first name",todayCcLastName:"Card last name",todayCcType:"Card type",todayCcExpMonth:"Card expiry month",
+  todayCcExpYear:"Card expiry year",todayCcCvvCode:"Card security code",todayCcBillingZip:"Card billing ZIP"};
+const errFieldLabel=f=>ERR_FIELD[f]||(/cc|card/i.test(f)?"Card field":(/draft|routing|bank/i.test(f)?"Bank field":f));
+const errGroupLabel=g=>{ const m=/^Form incomplete: (.*)$/.exec(g||""); return m ? "Form incomplete: "+m[1].split(", ").map(errFieldLabel).join(", ") : (g||"—"); };
+const errStep=s=>({"screen-1":"Step 1 (contact)","screen-2":"Step 2 (details)","screen-3":"Step 3 (payment)","join":"Join button"}[s]||s||"—");
+const errWhen=t=>{ const d=new Date(t); return isNaN(d)?"—":d.toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}); };
+const PLATNAME={cc:"Credit card",ach:"ACH",kiosk:"Kiosk"};
+
+async function renderErrors(){
+  const card=document.getElementById("errCard"), body=document.getElementById("errBody");
+  if(!RANGE||!card) return;
+  card.style.display="block";
+  const args={p_from:RANGE[0],p_to:RANGE[1],p_plan:PLANFILTER,p_locations:locArg(),p_platform:PLATFILTER};
+  const key=JSON.stringify(args); ERR_KEY=key;
+  try{
+    const r=await fetch(SUPA+"/rest/v1/rpc/report_checkout_errors",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(args)});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const j=await r.json(); if(ERR_KEY!==key) return;
+    ERR_DATA=j; ERR_DETAIL=null; ERR_SHOW=100;
+    const session=await currentSession().catch(()=>null);
+    if(session){
+      try{
+        const d=await fetch(SUPA+"/rest/v1/rpc/report_checkout_errors_detail",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+session.access_token,"Content-Type":"application/json"},body:JSON.stringify(args)});
+        if(d.ok){ const rows=await d.json(); if(ERR_KEY===key&&Array.isArray(rows)) ERR_DETAIL=rows; }
+      }catch(_){}
+    }
+    if(ERR_KEY===key) drawErrors();
+  }catch(e){ if(ERR_KEY===key) body.innerHTML=`<p class="cap">Couldn&rsquo;t load checkout errors (${esc(e.message)}).</p>`; }
+}
+
+function drawErrors(){
+  const body=document.getElementById("errBody"), j=ERR_DATA||{}, s=j.summary||{};
+  const LBL=t=>`<div class="label" style="color:var(--muted);margin:16px 0 2px;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em">${t}</div>`;
+  // Blank-pricing footprint from lead data (back to go-live) — shown even before tracking starts.
+  const bl=j.blank_plan_leads||{}, blLocs=(bl.by_location||[]);
+  const footprint = n(bl.people) ? LBL("Blank plan pricing in lead data")+
+    `<p class="cap" style="margin:2px 0 6px">${fmt(bl.people)} ${n(bl.people)===1?"person":"people"} at ${fmt(bl.clubs)} club${n(bl.clubs)===1?"":"s"} reached step 2 on a plan whose name and prices came through blank &mdash; the pattern of a plan removed from ABC but still listed in iCart. ${fmt(bl.joins)} of them joined. Lead data has no plan ID; the plan-level list above fills in once tracking is installed.</p>
+    <div style="overflow-x:auto;max-height:300px;overflow-y:auto"><table id="errBlankLeadTable"><thead><tr><th>Club</th><th>People</th><th>Joined</th><th title="Blank-pricing people ÷ the club's checkout entries in this range">Share of entries</th></tr></thead><tbody>__BLROWS__</tbody></table></div>` : "";
+  const blRows=ent=>blLocs.map(x=>{ const e=ent[normLoc(x.location)]; return `<tr><td>${x.location?esc(clubLabel(x.location))+` <span style="color:var(--muted)">#${esc(x.location)}</span>`:'<span style="color:var(--muted)">Club not recorded</span>'}</td><td>${fmt(x.people)}</td><td>${fmt(x.joins)}</td><td>${e?pct(100*n(x.people)/e):"—"}</td></tr>`; }).join("");
+  const ent={}; ((DATA&&DATA.by_location)||[]).forEach(x=>{const k=normLoc(x.location); if(k) ent[k]=(ent[k]||0)+n(x.entries);});
+  if(!j.tracking_since){
+    body.innerHTML=`<p class="note" style="margin:6px 0">Error tracking is set up but has not received anything yet &mdash; it starts once the capture file is installed on the iCart sites.</p>`+footprint.replace("__BLROWS__",blRows(ent)); return;
+  }
+  const since=new Date(j.tracking_since).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+  const sinceNote = RANGE[0] < j.tracking_since.slice(0,10) ? ` Tracking started ${since}; nothing before that date is counted.` : "";
+  document.getElementById("errCap").innerHTML=`Every time someone tried to get through checkout and was shown an error: pressing <b>Join</b> and getting an error back instead of the thank-you page, or being <b>stopped by blank or invalid fields</b>, or reaching step 2 on a plan whose <b>pricing came up blank</b>.${esc(sinceNote)}`;
+  if(!n(s.errors)){ body.innerHTML=`<p class="cap" style="margin:4px 0 10px">No checkout errors recorded in this range.</p>`+footprint.replace("__BLROWS__",blRows(ent)); return; }
+
+  const tile=(lab,val,sub,title)=>`<div class="tile"${title?` title="${escAttr(title)}"`:""}><div class="label">${lab}</div><div class="val">${val}</div>${sub?`<div class="delta flat">${sub}</div>`:""}</div>`;
+  const people=n(s.people), recov=n(s.people_joined_later);
+  let h=`<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:14px">`+
+    tile("Errors shown",fmt(s.errors),"in range","Every error shown, counting repeats by the same person.")+
+    tile("Join errors",fmt(s.server_errors),"pressed Join, got an error","The server came back with an error message instead of the thank-you page (card declined, ABC rejection, reCAPTCHA…).")+
+    tile("Form blocks",fmt(s.validation_errors),"blank / invalid fields","A Next or Join click was blocked because required fields were blank or invalid.")+
+    tile("Blank pricing",fmt(s.pricing_errors),fmt(s.pricing_plans)+" plan"+(n(s.pricing_plans)===1?"":"s")+" at step 2","Reached step 2 and the plan's name / prices were blank — usually a plan removed from ABC but still listed in iCart.")+
+    tile("People affected",fmt(people),"unique","Unique people (by email; attempts with no email yet count separately).")+
+    tile("Joined anyway",people?pct(100*recov/people):"—",fmt(recov)+" of "+fmt(people)+" within 7 days","People who hit an error and still completed a join within 7 days.")+
+    tile("Clubs affected",fmt(s.locations),"");
+  h+=`</div>`;
+
+  // By club — share of the club's checkouts that hit an error uses the Entries already on the page.
+  const locs=(j.by_location||[]);
+  h+=`<div class="label" style="color:var(--muted);margin:4px 0 2px;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em">By club</div>
+  <div style="overflow-x:auto;max-height:420px;overflow-y:auto"><table id="errLocTable"><thead><tr><th>Club</th><th>Errors</th><th>Join errors</th><th>Form blocks</th><th>Blank pricing</th><th>People</th><th title="People with an error ÷ the club's checkout entries in this range">Share of entries</th><th>Joined anyway</th><th style="text-align:left">Most common error</th></tr></thead><tbody>`+
+  locs.map(x=>{ const k=normLoc(x.location), e=ent[k];
+    const nm = x.location ? esc(clubLabel(x.location))+` <span style="color:var(--muted)">#${esc(x.location)}</span>` : '<span style="color:var(--muted)">Club not known yet</span>';
+    return `<tr><td>${nm}</td><td>${fmt(x.errors)}</td><td>${fmt(x.server_errors)}</td><td>${fmt(x.validation_errors)}</td><td>${fmt(x.pricing_errors)}</td><td>${fmt(x.people)}</td><td>${e?pct(100*n(x.people)/e):"—"}</td><td>${fmt(x.people_joined_later)}</td><td style="text-align:left;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escAttr(errGroupLabel(x.top_error))}">${esc(errGroupLabel(x.top_error))}</td></tr>`; }).join("")+
+  `</tbody></table></div>`;
+
+  // Plans with blank pricing (tracked, with plan ID) — the list to fix in ABC or remove from iCart.
+  const pp=(j.pricing_plans||[]);
+  if(pp.length) h+=LBL("Plans with blank pricing")+`<p class="cap" style="margin:2px 0 6px">Re-add the plan in ABC, or take it off that club&rsquo;s iCart page.</p>
+  <div style="overflow-x:auto;max-height:360px;overflow-y:auto"><table id="errPlanTable"><thead><tr><th>Club</th><th style="text-align:left">Plan ID</th><th style="text-align:left">Plan name</th><th>Times</th><th>People</th><th>Joined anyway</th><th>First seen</th><th>Last seen</th></tr></thead><tbody>`+
+  pp.map(x=>`<tr><td>${x.location?esc(clubLabel(x.location))+` <span style="color:var(--muted)">#${esc(x.location)}</span>`:"—"}</td><td style="text-align:left;font-family:ui-monospace,monospace;font-size:12px">${esc(x.plan_id||"—")}</td><td style="text-align:left;color:var(--text2)">${esc(x.plan||"(blank)")}</td><td>${fmt(x.times)}</td><td>${fmt(x.people)}</td><td>${fmt(x.people_joined_later)}</td><td style="white-space:nowrap">${errWhen(x.first_at)}</td><td style="white-space:nowrap">${errWhen(x.last_at)}</td></tr>`).join("")+`</tbody></table></div>`;
+
+  // By error type
+  h+=`<div class="label" style="color:var(--muted);margin:16px 0 2px;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em">By error</div>
+  <div style="overflow-x:auto"><table id="errTypeTable"><thead><tr><th>Error</th><th>Times</th><th>People</th><th>Clubs</th><th>Joined anyway</th><th style="text-align:left">Latest wording shown</th></tr></thead><tbody>`+
+  (j.by_error||[]).map(x=>`<tr><td style="max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escAttr(errGroupLabel(x.error_group))}">${esc(errGroupLabel(x.error_group))} <span style="color:var(--muted);font-size:11px">${({server:"Join",validation:"Form",pricing:"Pricing"})[x.source]||""}</span></td><td>${fmt(x.errors)}</td><td>${fmt(x.people)}</td><td>${fmt(x.locations)}</td><td>${fmt(x.people_joined_later)}</td><td style="text-align:left;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text2)" title="${escAttr(x.example||"")}">${esc(x.example||"—")}</td></tr>`).join("")+
+  `</tbody></table></div>`;
+
+  h+=footprint.replace("__BLROWS__",blRows(ent));
+
+  // Daily line when the range spans more than one day.
+  const days=(j.by_day||[]); if(days.length>1) h+=`<div id="errDays" style="margin-top:14px"></div>`;
+
+  // Log — personal details only when signed in.
+  const rows = ERR_DETAIL || (j.log||[]), authed=!!ERR_DETAIL, total=n(j.log_total);
+  const shown=rows.slice(0,ERR_SHOW);
+  h+=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:16px 0 2px">
+      <div class="label" style="color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.04em">Error log</div>
+      <span class="cap" style="margin:0">${fmt(shown.length)} of ${fmt(total)} most recent${authed?"":" &middot; sign in (Member login) to see who each person is"}</span>
+      <button type="button" id="errCsv" style="margin-left:auto">&#8681; CSV</button></div>
+    <div style="overflow-x:auto;max-height:520px;overflow-y:auto"><table id="errLogTable"><thead><tr><th>When</th><th style="text-align:left">Club</th><th style="text-align:left">Platform</th><th style="text-align:left">Plan</th><th style="text-align:left">Where</th><th style="text-align:left">Error shown</th>${authed?'<th style="text-align:left">Person</th><th style="text-align:left">Email</th><th style="text-align:left">Phone</th>':""}<th>Joined anyway</th></tr></thead><tbody>`+
+    shown.map(x=>{
+      const shownText = x.source==="validation" ? "Blank / invalid: "+(x.fields||[]).map(errFieldLabel).join(", ") : x.source==="pricing" ? "Pricing blank — "+(x.message||"") : (x.message||"(error text not captured)");
+      return `<tr><td style="white-space:nowrap">${errWhen(x.occurred_at)}</td><td style="text-align:left;white-space:nowrap">${x.location?esc(clubLabel(x.location)):'<span style="color:var(--muted)">—</span>'}</td><td style="text-align:left">${esc(PLATNAME[x.platform]||x.platform||"—")}</td><td style="text-align:left;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escAttr(x.plan||"")}">${esc(x.plan||"—")}</td><td style="text-align:left;white-space:nowrap">${esc(errStep(x.step))}</td><td style="text-align:left;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escAttr(shownText)}">${esc(shownText)}</td>${authed?`<td style="text-align:left;white-space:nowrap">${esc([x.first_name,x.last_name].filter(Boolean).join(" ")||"—")}</td><td style="text-align:left">${esc(x.email||"—")}</td><td style="text-align:left;white-space:nowrap">${esc(x.phone||"—")}</td>`:""}<td>${x.joined_later?'<span style="color:var(--good)">Yes</span>':'<span style="color:var(--muted)">No</span>'}</td></tr>`; }).join("")+
+    `</tbody></table></div>`+
+    (rows.length>ERR_SHOW?`<button type="button" id="errMore" style="margin-top:8px">Show ${fmt(Math.min(400,rows.length-ERR_SHOW))} more</button>`:"");
+  body.innerHTML=h;
+  if(days.length>1) drawErrDays(days);
+  const more=document.getElementById("errMore"); if(more) more.onclick=()=>{ ERR_SHOW+=400; drawErrors(); };
+  document.getElementById("errCsv").onclick=()=>{
+    const q=v=>{ v=v==null?"":String(v); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
+    const head=["When (UTC)","Club #","Club","Platform","Plan","Plan ID","Where","Type","Error","Blank fields","Joined within 7 days"].concat(authed?["First name","Last name","Email","Phone","Promo","UTM source","UTM campaign"]:[]);
+    const lines=[head.join(",")].concat(rows.map(x=>[x.occurred_at,x.location,x.location?clubLabel(x.location):"",PLATNAME[x.platform]||x.platform,x.plan,x.plan_id,errStep(x.step),({server:"Join error",validation:"Form block",pricing:"Blank pricing"})[x.source]||x.source,
+      x.source==="validation"?errGroupLabel(x.error_group):(x.message||""),(x.fields||[]).map(errFieldLabel).join("; "),x.joined_later?"yes":"no"]
+      .concat(authed?[x.first_name,x.last_name,x.email,x.phone,x.promo_code,x.utm_source,x.utm_campaign]:[]).map(q).join(",")));
+    downloadText("woat-checkout-errors_"+RANGE[0]+"_to_"+RANGE[1]+(authed?"_with-contacts":"")+".csv", lines.join("\n"));
+  };
+}
+
+function drawErrDays(days){
+  const host=document.getElementById("errDays"); if(!host) return;
+  const f=new Date(RANGE[0]+"T00:00:00"), todayStr=ymd(new Date()), t=new Date(((RANGE[1]>todayStr)?todayStr:RANGE[1])+"T00:00:00");
+  const bd={}; days.forEach(d=>bd[d.day]=d); const pts=[];
+  for(let d=new Date(f); d<=t && pts.length<800; d.setDate(d.getDate()+1)){ const k=ymd(d), v=bd[k]||{}; pts.push({k,label:(d.getMonth()+1)+"/"+d.getDate(),s:n(v.server_errors),v:n(v.validation_errors),p:n(v.pricing_errors)}); }
+  if(pts.length<2){ host.innerHTML=""; return; }
+  const W=1000,H=150,P={l:34,r:16,t:10,b:24},iw=W-P.l-P.r,ih=H-P.t-P.b, max=niceMax(Math.max(1,...pts.map(p=>Math.max(p.s,p.v,p.p))));
+  const x=i=>P.l+(i/(pts.length-1))*iw, y=v=>P.t+ih-(v/max)*ih;
+  const line=(k,c)=>`<path d="${pts.map((p,i)=>(i?"L":"M")+x(i)+" "+y(p[k])).join(" ")}" fill="none" stroke="${c}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  let g=`<line class="gl" x1="${P.l}" y1="${y(max)}" x2="${W-P.r}" y2="${y(max)}"/><text class="axis" x="${P.l-6}" y="${y(max)+4}" text-anchor="end">${fmt(max)}</text><line class="baseline" x1="${P.l}" y1="${y(0)}" x2="${W-P.r}" y2="${y(0)}"/>`;
+  const every=Math.max(1,Math.ceil(pts.length/8)); pts.forEach((p,i)=>{ const lastI=pts.length-1; if((i%every===0&&lastI-i>=every/2)||i===lastI) g+=`<text class="axis" x="${x(i)}" y="${H-6}" text-anchor="middle">${p.label}</text>`; });
+  let hits=""; pts.forEach((p,i)=>{ hits+=`<rect x="${x(i)-iw/pts.length/2}" y="${P.t}" width="${Math.max(2,iw/pts.length)}" height="${ih}" fill="transparent" onmousemove="showTip('<b>${p.k}</b><br>Join errors: ${p.s}<br>Form blocks: ${p.v}<br>Blank pricing: ${p.p}',event)" onmouseleave="hideTip()"/>`; });
+  host.innerHTML=`<div class="legend" style="margin-bottom:4px"><span><i class="swatch" style="background:var(--red)"></i>Join errors</span><span><i class="swatch" style="background:var(--conv)"></i>Form blocks</span><span><i class="swatch" style="background:var(--blue)"></i>Blank pricing</span><span style="color:var(--muted)">per day</span></div><svg viewBox="0 0 ${W} ${H}">${g}${line("p",cssv('--blue'))}${line("v",cssv('--conv'))}${line("s",cssv('--red'))}${hits}</svg>`;
 }
 
 function series(){
@@ -1055,6 +1199,7 @@ async function refreshAuthUI(){
   if(authed){ authBtn.textContent="⏻ "+(session.user.email||"Sign out"); authBtn.title="Signed in — click to sign out"; authPanel.style.display="none"; }
   else { authBtn.innerHTML="&#128274; Member login"; authBtn.title="Sign in to export full customer details"; }
   if(DATA) drawBars();   // show/hide per-club export links
+  if(DATA) renderErrors();   // checkout-error log gains / loses the person columns
 }
 authBtn.onclick=async()=>{
   const session=await currentSession();
