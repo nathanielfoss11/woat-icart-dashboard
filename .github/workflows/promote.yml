@@ -1,4 +1,5 @@
-# Promote dev/index.html → index.html (production, reports.woat.org).
+# Promote dev/index.html → index.html (production, reports.woat.org), and dev/leads.html → leads.html
+# (login-only leads page, added 2026-10-05) when that file exists and differs.
 #
 # Nate's click is still the production deploy: Actions → "Promote dev to root" → Run workflow → type "promote".
 # What changes: the copy is done by the workflow, so it cannot land in the wrong folder, and the commit message
@@ -11,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: 'Type "promote" to copy dev/index.html over index.html (or "rollback" to restore the previous index.html)'
+        description: 'Type "promote" to copy dev/index.html (and dev/leads.html) to root, or "rollback" to restore the previous root files'
         required: true
         type: string
 
@@ -43,34 +44,48 @@ jobs:
         run: |
           set -euo pipefail
           test -f dev/index.html || { echo "dev/index.html missing"; exit 1; }
-          if cmp -s dev/index.html index.html; then
-            echo "index.html is already identical to dev/index.html — nothing to promote."; exit 0
+          changed=""; notes=""
+          if ! cmp -s dev/index.html index.html; then
+            # the file must be a complete page: same guard the harness uses (5 inline script blocks parse)
+            grep -c '<script' dev/index.html | xargs -I{} sh -c 'test {} -ge 3 || { echo "dev/index.html does not look like the dashboard"; exit 1; }'
+            before=$(md5sum index.html | cut -c1-32); after=$(md5sum dev/index.html | cut -c1-32)
+            cp dev/index.html index.html; changed="$changed index.html"; notes="$notes index.html ${before} → ${after};"
           fi
-          # the file must be a complete page: same guard the harness uses (5 inline script blocks parse)
-          grep -c '<script' dev/index.html | xargs -I{} sh -c 'test {} -ge 3 || { echo "dev/index.html does not look like the dashboard"; exit 1; }'
-          before=$(md5sum index.html | cut -c1-32); after=$(md5sum dev/index.html | cut -c1-32)
-          cp dev/index.html index.html
+          if [ -f dev/leads.html ] && ! cmp -s dev/leads.html leads.html 2>/dev/null; then
+            grep -q 'report_leads' dev/leads.html || { echo "dev/leads.html does not look like the leads page"; exit 1; }
+            lb=$( [ -f leads.html ] && md5sum leads.html | cut -c1-32 || echo none ); la=$(md5sum dev/leads.html | cut -c1-32)
+            cp dev/leads.html leads.html; changed="$changed leads.html"; notes="$notes leads.html ${lb} → ${la};"
+          fi
+          if [ -z "$changed" ]; then echo "Root already identical to dev/ — nothing to promote."; exit 0; fi
           git config user.name  "promote-bot"
           git config user.email "promote-bot@users.noreply.github.com"
-          git add index.html
-          git commit -m "Promote dev/index.html → index.html" -m "root was ${before}, now ${after} (identical to dev/index.html). Triggered by ${GITHUB_ACTOR} via workflow_dispatch."
+          git add $changed
+          git commit -m "Promote dev →$changed" -m "${notes} Triggered by ${GITHUB_ACTOR} via workflow_dispatch."
           git push
-          echo "Promoted. root md5 ${before} → ${after}"
+          echo "Promoted:${notes}"
 
       - name: Rollback
         if: env.mode == 'rollback'
         run: |
           set -euo pipefail
-          git show HEAD~1:index.html > /tmp/prev.html
-          before=$(md5sum index.html | cut -c1-32); after=$(md5sum /tmp/prev.html | cut -c1-32)
-          if [ "$before" = "$after" ]; then echo "Previous commit has the same index.html — nothing to roll back."; exit 0; fi
-          cp /tmp/prev.html index.html
+          changed=""; notes=""
+          for f in index.html leads.html; do
+            [ -f "$f" ] || continue
+            if git cat-file -e "HEAD~1:$f" 2>/dev/null; then
+              git show "HEAD~1:$f" > "/tmp/prev-$f"
+              if ! cmp -s "/tmp/prev-$f" "$f"; then
+                before=$(md5sum "$f" | cut -c1-32); after=$(md5sum "/tmp/prev-$f" | cut -c1-32)
+                cp "/tmp/prev-$f" "$f"; changed="$changed $f"; notes="$notes $f ${before} → ${after};"
+              fi
+            fi
+          done
+          if [ -z "$changed" ]; then echo "Previous commit has the same root files — nothing to roll back."; exit 0; fi
           git config user.name  "promote-bot"
           git config user.email "promote-bot@users.noreply.github.com"
-          git add index.html
-          git commit -m "Rollback index.html to previous commit" -m "root was ${before}, now ${after}. Triggered by ${GITHUB_ACTOR} via workflow_dispatch."
+          git add $changed
+          git commit -m "Rollback$changed to previous commit" -m "${notes} Triggered by ${GITHUB_ACTOR} via workflow_dispatch."
           git push
-          echo "Rolled back. root md5 ${before} → ${after}"
+          echo "Rolled back:${notes}"
 
       # A push made with the workflow's own token does NOT fire other workflows' `on: push` (GitHub rule), so the
       # smoke test would otherwise never see a promotion. workflow_dispatch is the exception to that rule, so we
