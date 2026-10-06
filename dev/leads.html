@@ -88,6 +88,14 @@
   .admin-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0 12px;font-size:13px}
   .switch{display:inline-flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}
   .switch input{width:16px;height:16px;cursor:pointer}
+  .tgl{position:relative;display:inline-block;width:38px;height:22px;vertical-align:middle}
+  .tgl input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;z-index:1}
+  .tgl span{position:absolute;inset:0;border-radius:999px;background:var(--border);transition:background .15s}
+  .tgl span::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .15s}
+  .tgl input:checked+span{background:var(--blue)}
+  .tgl input:checked+span::after{transform:translateX(16px)}
+  .tgl input:focus-visible+span{outline:2px solid var(--blue);outline-offset:2px}
+  .tgl input:disabled+span{opacity:.5}
   .confirm{display:none;margin-top:8px}
   .foot{margin-top:26px;font-size:11.5px;color:var(--muted);line-height:1.6}
   [hidden]{display:none!important}
@@ -199,7 +207,7 @@
 
     <section class="card" id="adminCard" hidden>
       <h2>ABC new-member pull &mdash; admin</h2>
-      <p class="cap">ABC bills per API call. Nothing is called unless the master switch is on <em>and</em> a club is enabled. Weekly = one call per club per week (more only if a club has over 5,000 new members in the window).</p>
+      <p class="cap">ABC bills per API call. Nothing is called unless the master switch is on <em>and</em> a club is enabled. Each location has its own on/off toggle and frequency: Daily &asymp; 30 calls a month, Weekly &asymp; 4, Monthly = 1 (more only if a club has over 5,000 new members in the window). Less frequent pulls are cheaper but in-club joins show up later.</p>
       <div class="admin-row">
         <label class="switch"><input type="checkbox" id="masterSw"> <strong>Master switch</strong></label>
         <span class="muted" id="costEst"></span>
@@ -212,7 +220,7 @@
         <input type="search" id="admSearch" placeholder="Filter clubs&hellip;" aria-label="Filter clubs" style="font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--page);color:var(--text)">
         <button type="button" id="admAllOn">Enable shown</button>
         <button type="button" id="admAllOff">Disable shown</button>
-        <select id="admCadence" aria-label="Cadence for shown clubs"><option value="">Set cadence for shown&hellip;</option><option value="weekly">Weekly</option><option value="daily">Daily</option></select>
+        <select id="admCadence" aria-label="Frequency for shown clubs"><option value="">Set frequency for shown&hellip;</option><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select>
         <span class="muted" id="admMsg" role="status"></span>
       </div>
       <div class="scroll" style="max-height:420px;overflow:auto"><table id="admTable" aria-label="ABC pull per club"></table></div>
@@ -512,16 +520,16 @@ async function loadAdmin(){
   if(ADMIN&&ADMIN.is_admin) renderAdmin();
 }
 function shownClubs(){ const q=($("admSearch").value||"").toLowerCase(); return (ADMIN.clubs||[]).filter(c=>!q||(c.club_name||"").toLowerCase().includes(q)||c.club_number.includes(q)); }
-function estCalls(){ return Math.round((ADMIN.clubs||[]).reduce((s,c)=>s+(c.enabled?(c.cadence==="daily"?30.4:4.35):0),0)); }
+function estCalls(){ return Math.round((ADMIN.clubs||[]).reduce((s,c)=>s+(c.enabled?({daily:30.4,weekly:4.35,monthly:1}[c.cadence]||4.35):0),0)); }
 function renderAdmin(){
   $("masterSw").checked=!!ADMIN.master_enabled;
   const en=(ADMIN.clubs||[]).filter(c=>c.enabled).length;
   $("costEst").textContent=`${en} club${en===1?"":"s"} enabled · about ${intf(estCalls())} ABC calls / month at current settings${ADMIN.master_enabled?"":" (none while the master switch is off)"} · cap ${esc(ADMIN.max_calls_per_run)} calls per run`;
   const rows=shownClubs();
-  $("admTable").innerHTML=`<thead><tr><th>Club</th><th>On</th><th>Cadence</th><th>Read from</th><th>Read through</th><th>Last run</th><th>Calls</th><th>New members</th></tr></thead><tbody>`+
+  $("admTable").innerHTML=`<thead><tr><th>Club</th><th>ABC pull</th><th>Frequency</th><th>Read from</th><th>Read through</th><th>Last run</th><th>Calls</th><th>New members</th></tr></thead><tbody>`+
     rows.map(c=>`<tr><td class="trunc">${esc((c.club_name||"Club")+" ("+c.club_number+")")}</td>
-      <td><input type="checkbox" data-club="${esc(c.club_number)}" class="admOn" ${c.enabled?"checked":""} aria-label="Enable ${esc(c.club_name||c.club_number)}"></td>
-      <td><select data-club="${esc(c.club_number)}" class="admCad" aria-label="Cadence for ${esc(c.club_name||c.club_number)}"><option value="weekly" ${c.cadence==="weekly"?"selected":""}>Weekly</option><option value="daily" ${c.cadence==="daily"?"selected":""}>Daily</option></select></td>
+      <td><label class="tgl" title="${c.enabled?"On — pulled from ABC":"Off — not pulled"}"><input type="checkbox" role="switch" data-club="${esc(c.club_number)}" class="admOn" ${c.enabled?"checked":""} aria-label="ABC pull for ${esc(c.club_name||c.club_number)}"><span></span></label></td>
+      <td><select data-club="${esc(c.club_number)}" class="admCad" aria-label="Frequency for ${esc(c.club_name||c.club_number)}">${["daily","weekly","monthly"].map(v=>`<option value="${v}" ${c.cadence===v?"selected":""}>${v[0].toUpperCase()+v.slice(1)}</option>`).join("")}</select></td>
       <td>${esc(fmtDate(c.pulled_from))}</td><td>${esc(fmtDate(c.last_pulled_through))}</td>
       <td title="${esc(c.last_status||"")}">${c.last_run_at?esc(fmtTs(c.last_run_at))+(c.last_status&&c.last_status!=="ok"?" ⚠":""):""}</td>
       <td>${c.last_calls==null?"":c.last_calls}</td><td>${c.last_rows==null?"":intf(c.last_rows)}</td></tr>`).join("")+"</tbody>";
