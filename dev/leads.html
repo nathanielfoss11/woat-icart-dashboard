@@ -416,7 +416,7 @@ function renderCoverage(){
   let abc;
   if(!c.abc_master_enabled||!c.clubs_enabled) abc=`<strong>ABC in-club matching is off</strong> — ${c.clubs_enabled?intf(c.clubs_enabled)+" clubs are enabled but the master switch is off":"no clubs are enabled"}. In-club joins below come from the iCart kiosk only.`;
   else abc=`<strong>ABC matching on for ${intf(c.clubs_enabled)} of ${intf(c.clubs_total)} clubs</strong>, read ${c.pulled_from_min?"from "+fmtDate(c.pulled_from_min)+" ":""}through ${c.pulled_through_min?fmtDate(c.pulled_through_min):"(first pull pending)"}${c.pulled_through_max&&c.pulled_through_max!==c.pulled_through_min?" – "+fmtDate(c.pulled_through_max):""}. ${c.last_run_at?"Last pull "+fmtTs(c.last_run_at)+".":""}`;
-  const web=c.web_leads_since?`Website form leads recorded since ${fmtDate(c.web_leads_since)}.`:`<strong>No website form leads received yet</strong> — they start arriving once the Zapier step is added to each form’s Zap.`;
+  const web=c.web_leads_since?`Website form leads recorded since ${fmtDate(c.web_leads_since)}.`:`<strong>No website form leads received yet</strong> — the four workoutanytime.com forms (Free Trial, Book a Tour, Contact, Charter) send them here as people submit.`;
   el.className="note"+((!c.abc_master_enabled||!c.web_leads_since)?" warn":"");
   el.innerHTML=`${abc} ${nc?intf(nc)+" leads are <em>not checked yet</em> (ABC not read for their club/date).":""}<br>${web} Matching window: ${intf(c.window_days)} days after the lead.`;
 }
