@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Leads &amp; In-Club Joins</title>
+<style>
+  :root{
+    color-scheme: light dark;
+    --page:#f9f9f7; --surface:#fcfcfb; --text:#0b0b0b; --text2:#52514e; --muted:#898781;
+    --grid:#e1e0d9; --baseline:#c3c2b7; --border:rgba(11,11,11,0.10);
+    --blue:#0A419C; --green:#008300; --red:#e34948; --good:#006300; --accent:#A4D6DE;
+    --teal:#0E8FA3; --conv:#C9701A; --rest:#d9d8d1;
+  }
+  @media (prefers-color-scheme: dark){ :root:where(:not([data-theme="light"])){
+    --page:#0d0d0d; --surface:#1a1a19; --text:#fff; --text2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,0.10);
+    --blue:#4F7AD8; --green:#008300; --accent:#A4D6DE; --red:#e66767; --good:#0ca30c; --teal:#4FC3D6; --conv:#E7973B; --rest:#3a3a37; } }
+  :root[data-theme="dark"]{
+    --page:#0d0d0d; --surface:#1a1a19; --text:#fff; --text2:#c3c2b7; --muted:#898781;
+    --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,0.10);
+    --blue:#4F7AD8; --green:#008300; --accent:#A4D6DE; --red:#e66767; --good:#0ca30c; --teal:#4FC3D6; --conv:#E7973B; --rest:#3a3a37; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1160px;margin:0 auto;padding:28px 24px 60px}
+  @media (max-width:560px){.wrap{padding:22px 16px 48px}}
+  body::before{content:"";position:fixed;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--blue),var(--accent));z-index:40}
+  header.top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+  h1{font-size:22px;margin:0;letter-spacing:-0.01em}
+  .sub{color:var(--text2);font-size:13px;margin-top:4px}
+  .sub a{color:var(--blue)}
+  .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  select,button,input[type=date]{font:inherit;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;cursor:pointer}
+  button:focus-visible,select:focus-visible,input:focus-visible,a:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+  button[disabled]{opacity:.55;cursor:default}
+  button.primary{border-color:var(--blue);color:var(--blue);font-weight:600}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:16px 0 4px}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{font-size:12px;border:1px solid var(--border);border-radius:999px;padding:5px 10px;background:var(--surface);cursor:pointer;user-select:none;color:var(--text2)}
+  .chip[aria-pressed="true"]{border-color:var(--blue);color:var(--text);background:color-mix(in srgb,var(--blue) 12%,var(--surface))}
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin:18px 0}
+  @media (max-width:920px){.kpis{grid-template-columns:repeat(3,1fr)}}
+  @media (max-width:560px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  .tile{background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:12px;padding:14px 15px;min-width:0}
+  .tile .label{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
+  .tile .val{font-size:26px;font-weight:650;margin-top:8px;letter-spacing:-0.02em;font-variant-numeric:tabular-nums}
+  .tile .hint{font-size:11.5px;color:var(--muted);margin-top:4px;min-height:14px}
+  .tile.online{border-top-color:var(--blue)} .tile.inclub{border-top-color:var(--teal)}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:18px 18px 12px;margin-bottom:18px;min-width:0}
+  .card h2{font-size:14px;margin:0 0 2px}
+  .card .cap{font-size:12px;color:var(--muted);margin:0 0 12px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media (max-width:860px){.grid2{grid-template-columns:1fr}}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--text2);margin:2px 0 8px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .swatch{width:10px;height:10px;border-radius:3px;display:inline-block}
+  svg{display:block;width:100%;overflow:visible}
+  .axis{fill:var(--muted);font-size:11px}
+  .gl{stroke:var(--grid);stroke-width:1}.baseline{stroke:var(--baseline);stroke-width:1}
+  .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:6px}
+  th,td{text-align:right;padding:8px 6px;border-bottom:1px solid var(--border);font-variant-numeric:tabular-nums;white-space:nowrap}
+  th:first-child,td:first-child{text-align:left;font-variant-numeric:normal}
+  th{color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em}
+  td.l,th.l{text-align:left}
+  td.trunc{max-width:220px;overflow:hidden;text-overflow:ellipsis}
+  .pill{display:inline-block;font-size:11.5px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--text2)}
+  .pill.joined_online{border-color:var(--blue);color:var(--blue)}
+  .pill.joined_in_club,.pill.joined_kiosk{border-color:var(--teal);color:var(--teal)}
+  .pill.not_checked{border-style:dashed}
+  .note{margin:12px 0;font-size:13px;color:var(--text2);background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--blue);border-radius:8px;padding:12px 14px;line-height:1.5}
+  .note.warn{border-left-color:var(--conv)} .note.err{border-left-color:var(--red)} .note.ok{border-left-color:var(--green)}
+  .muted{color:var(--muted)}
+  .pager{display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:10px;font-size:12px;color:var(--muted)}
+  .msel{position:relative;display:inline-block}
+  #clubBtn{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .msel-panel{position:absolute;top:calc(100% + 4px);left:0;z-index:30;width:270px;max-width:calc(100vw - 32px);background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.28);padding:8px;display:none}
+  .msel-panel.open{display:block}
+  .msel-panel input[type=search]{width:100%;background:var(--page);color:var(--text);border:1px solid var(--border);border-radius:7px;padding:6px 8px;font:inherit;margin-bottom:6px}
+  .msel-top{display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--muted);padding:0 2px 6px}
+  .msel-top a{color:var(--blue);text-decoration:none}
+  .msel-list{max-height:264px;overflow:auto}
+  .msel-list label{display:flex;align-items:center;gap:8px;padding:5px 4px;font-size:13px;cursor:pointer;border-radius:6px}
+  .msel-list label:hover{background:color-mix(in srgb,var(--blue) 12%,transparent)}
+  #gate{max-width:440px;margin:60px auto}
+  #gate input{width:100%;font:inherit;font-size:14px;padding:9px 11px;border:1px solid var(--border);border-radius:8px;background:var(--page);color:var(--text);margin:10px 0}
+  .admin-row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:6px 0 12px;font-size:13px}
+  .switch{display:inline-flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}
+  .switch input{width:16px;height:16px;cursor:pointer}
+  .confirm{display:none;margin-top:8px}
+  .foot{margin-top:26px;font-size:11.5px;color:var(--muted);line-height:1.6}
+  [hidden]{display:none!important}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Workout Anytime &mdash; Leads &amp; In-Club Joins</h1>
+      <div class="sub">Website forms + iCart leads, matched to online and in-club joins &middot; <a href="./">&larr; Lead &amp; Join Report</a></div>
+    </div>
+    <div class="controls">
+      <button id="authBtn" type="button">&#128274; Sign in</button>
+      <button id="themeBtn" type="button" title="Toggle light / dark" aria-label="Toggle light or dark theme">&#9680;</button>
+    </div>
+  </header>
+
+  <!-- Sign-in gate: this page lists people, so nothing loads without a session -->
+  <div id="gate" class="card" hidden>
+    <h2>Sign in to view leads</h2>
+    <p class="cap">This page lists names, emails and phone numbers, so it is limited to invited users. Enter your email and we&rsquo;ll send a login link.</p>
+    <label for="authEmail" class="muted" style="font-size:12px">Email</label>
+    <input type="email" id="authEmail" placeholder="you@example.com" autocomplete="email">
+    <button id="sendLink" type="button" class="primary">Email me a login link</button>
+    <div id="authMsg" class="cap" style="margin-top:10px" role="status"></div>
+  </div>
+
+  <main id="app" hidden>
+    <div class="filters">
+      <select id="preset" aria-label="Date range">
+        <option value="7">Last 7 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="mtd">This month</option>
+        <option value="lm">Last month</option>
+        <option value="custom">Custom&hellip;</option>
+      </select>
+      <span id="customRange" hidden>
+        <input type="date" id="dFrom" aria-label="From date"> &ndash; <input type="date" id="dTo" aria-label="To date">
+        <button type="button" id="applyRange">Apply</button>
+      </span>
+      <div class="msel" id="clubSel">
+        <button type="button" id="clubBtn" aria-haspopup="true" aria-expanded="false">All clubs &#9662;</button>
+        <div class="msel-panel" id="clubPanel">
+          <input type="search" id="clubSearch" placeholder="Search clubs&hellip;" autocomplete="off" aria-label="Search clubs">
+          <div class="msel-top"><span id="clubCountLbl">All clubs</span><a href="#" id="clubClear">Clear</a></div>
+          <div class="msel-list" id="clubList"></div>
+        </div>
+      </div>
+      <select id="outcome" aria-label="Outcome filter">
+        <option value="">All outcomes</option>
+        <option value="joined">Joined (any)</option>
+        <option value="joined_online">Joined online</option>
+        <option value="inclub">Joined in club</option>
+        <option value="nojoin">No join yet / no join</option>
+        <option value="not_checked">Not checked yet</option>
+      </select>
+      <label class="switch" title="Include agency test leads (@sneeze.it, test@…)"><input type="checkbox" id="tests"> Tests</label>
+      <button type="button" id="exportBtn" class="primary">&#8681; Export CSV</button>
+    </div>
+    <div class="chips" id="sourceChips" role="group" aria-label="Lead sources"></div>
+
+    <div id="rangeNote" class="note warn" hidden></div>
+    <div id="errNote" class="note err" hidden role="alert"></div>
+    <div id="coverage" class="note"></div>
+
+    <section class="kpis" aria-label="Summary">
+      <div class="tile"><div class="label">Leads</div><div class="val" id="kLeads">&ndash;</div><div class="hint" id="kLeadsH"></div></div>
+      <div class="tile"><div class="label">People</div><div class="val" id="kPeople">&ndash;</div><div class="hint">unique email / phone</div></div>
+      <div class="tile online"><div class="label">Joined online</div><div class="val" id="kOnline">&ndash;</div><div class="hint">iCart checkout</div></div>
+      <div class="tile inclub"><div class="label">Joined in club</div><div class="val" id="kInclub">&ndash;</div><div class="hint" id="kInclubH">kiosk + ABC match</div></div>
+      <div class="tile"><div class="label">Lead &rarr; join</div><div class="val" id="kRate">&ndash;</div><div class="hint">people who joined either way</div></div>
+      <div class="tile"><div class="label">Days to in-club join</div><div class="val" id="kDays">&ndash;</div><div class="hint">median</div></div>
+    </section>
+
+    <section class="card">
+      <h2>Leads by week</h2>
+      <p class="cap">Each column is one week of leads, split by what happened next. Weeks start Monday.</p>
+      <div class="legend">
+        <span><i class="swatch" style="background:var(--blue)"></i>Joined online</span>
+        <span><i class="swatch" style="background:var(--teal)"></i>Joined in club</span>
+        <span><i class="swatch" style="background:var(--rest)"></i>No join / not checked</span>
+      </div>
+      <div id="chart"></div>
+    </section>
+
+    <div class="grid2">
+      <section class="card">
+        <h2>By source</h2>
+        <p class="cap">Where the lead came from. A person on two sources is counted on both rows.</p>
+        <div class="scroll"><table id="srcTable" aria-label="Leads by source"></table></div>
+      </section>
+      <section class="card">
+        <h2>By club</h2>
+        <p class="cap">Top clubs by leads in range. In-club = kiosk + ABC matches.</p>
+        <div class="scroll"><table id="clubTable" aria-label="Leads by club"></table></div>
+        <div class="pager"><button type="button" id="clubMore" hidden>Show all clubs</button></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2>Leads</h2>
+      <p class="cap" id="rowsCap">Newest first.</p>
+      <div class="scroll"><table id="rowTable" aria-label="Lead rows"></table></div>
+      <div class="pager"><span id="pageLbl"></span><button type="button" id="prevPg">&lsaquo; Prev</button><button type="button" id="nextPg">Next &rsaquo;</button></div>
+    </section>
+
+    <section class="card" id="adminCard" hidden>
+      <h2>ABC new-member pull &mdash; admin</h2>
+      <p class="cap">ABC bills per API call. Nothing is called unless the master switch is on <em>and</em> a club is enabled. Weekly = one call per club per week (more only if a club has over 5,000 new members in the window).</p>
+      <div class="admin-row">
+        <label class="switch"><input type="checkbox" id="masterSw"> <strong>Master switch</strong></label>
+        <span class="muted" id="costEst"></span>
+      </div>
+      <div class="confirm note warn" id="masterConfirm">
+        <span id="masterConfirmMsg"></span>
+        <div style="margin-top:8px"><button type="button" class="primary" id="masterYes">Confirm</button> <button type="button" id="masterNo">Cancel</button></div>
+      </div>
+      <div class="admin-row">
+        <input type="search" id="admSearch" placeholder="Filter clubs&hellip;" aria-label="Filter clubs" style="font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--border);border-radius:8px;background:var(--page);color:var(--text)">
+        <button type="button" id="admAllOn">Enable shown</button>
+        <button type="button" id="admAllOff">Disable shown</button>
+        <select id="admCadence" aria-label="Cadence for shown clubs"><option value="">Set cadence for shown&hellip;</option><option value="weekly">Weekly</option><option value="daily">Daily</option></select>
+        <span class="muted" id="admMsg" role="status"></span>
+      </div>
+      <div class="scroll" style="max-height:420px;overflow:auto"><table id="admTable" aria-label="ABC pull per club"></table></div>
+    </section>
+
+    <div class="foot" id="foot">
+      <strong>How matching works.</strong> A lead is a website form submission (Contact, Charter, Free Trial, Book a Tour) or an iCart checkout started on woat.org / ACH (kiosk excluded). It counts as <em>joined online</em> when the same email completes an iCart checkout within the window, and <em>joined in club</em> when the same email joins on the kiosk, or when an ABC member who joined within the window matches by email, then phone, then name + club. A match shows that the lead later joined; it does not prove the lead caused the join. <em>Not checked yet</em> means ABC has not been read for that club and date. ABC contact details are stored only as salted hashes.
+    </div>
+  </main>
+</div>
+<div id="tip" role="tooltip" style="position:fixed;pointer-events:none;opacity:0;z-index:50;background:var(--text);color:var(--page);font-size:12px;padding:7px 9px;border-radius:7px;white-space:nowrap"></div>
+
+<script>
+(function(){
+"use strict";
+const SUPA="https://vxfhxgtcwczvoewozgws.supabase.co";
+const ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4Zmh4Z3Rjd2N6dm9ld296Z3dzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ2MDA0MDQsImV4cCI6MjEwMDE3NjQwNH0.QormaoIOYkKhEciBcy9EjSKHU853nMafouj1_52hRHA";
+const MAX_VIEW_DAYS=125, PAGE=100;
+
+const SOURCES=[
+  ["web_free_trial","Website · Free Trial"],["web_book_tour","Website · Book a Tour"],["web_contact","Website · Contact"],
+  ["web_charter","Website · Charter"],["web_other","Website · Other"],
+  ["icart_www","iCart · Credit card"],["icart_ach","iCart · ACH"],["icart","iCart · imported history"]];
+const SRC=Object.fromEntries(SOURCES);
+const OUT={joined_online:"Joined online",joined_kiosk:"Joined in club (kiosk)",joined_in_club:"Joined in club (ABC)",
+  open:"No join yet",no_join:"No join in window",not_checked:"Not checked yet"};
+const OUTCOME_SETS={joined:["joined_online","joined_kiosk","joined_in_club"],joined_online:["joined_online"],
+  inclub:["joined_kiosk","joined_in_club"],nojoin:["open","no_join"],not_checked:["not_checked"]};
+
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+const intf=n=>(Number(n)||0).toLocaleString("en-US");
+const pct=(a,b)=>b?((a/b)*100).toFixed(1)+"%":"–";
+const ymd=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const addDays=(s,k)=>{const d=new Date(s+"T12:00:00");d.setDate(d.getDate()+k);return ymd(d);};
+const days=(a,b)=>Math.round((new Date(b+"T12:00:00")-new Date(a+"T12:00:00"))/86400000);
+const fmtDate=s=>s?new Date(String(s).slice(0,10)+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"";
+const fmtTs=s=>s?new Date(s).toLocaleString("en-US",{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}):"";
+
+let sb=null, session=null, CLUBS={}, SEL=new Set(), SRCSEL=new Set(SOURCES.map(s=>s[0])), RANGE=null,
+    DATA=null, page=0, showAllClubs=false, ADMIN=null, loadSeq=0;
+
+/* ---------- theme ---------- */
+$("themeBtn").onclick=()=>{
+  const cur=document.documentElement.getAttribute("data-theme");
+  const dark=cur?cur==="dark":matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.setAttribute("data-theme",dark?"light":"dark");
+};
+
+/* ---------- RPC (one attempt; no automatic retry loops) ---------- */
+async function rpc(name,args,authed){
+  const token=authed&&session?session.access_token:ANON;
+  const r=await fetch(SUPA+"/rest/v1/rpc/"+name,{method:"POST",
+    headers:{apikey:ANON,Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify(args||{})});
+  const text=await r.text();
+  if(!r.ok){
+    let msg="HTTP "+r.status; try{const j=JSON.parse(text); msg=j.message||j.hint||msg;}catch(_e){}
+    const e=new Error(msg); e.status=r.status; throw e;
+  }
+  return text?JSON.parse(text):null;
+}
+
+/* ---------- auth ---------- */
+async function initAuth(){
+  if(!window.supabase){ showErr("Couldn’t load the sign-in library. Check your connection and reload."); $("gate").hidden=false; return; }
+  sb=window.supabase.createClient(SUPA,ANON,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
+  const {data}=await sb.auth.getSession(); session=data.session;
+  sb.auth.onAuthStateChange((_ev,s)=>{ const had=!!session; session=s; if(!!s!==had) applyAuth(); });
+  applyAuth();
+}
+function applyAuth(){
+  const authed=!!session;
+  $("gate").hidden=authed; $("app").hidden=!authed;
+  $("authBtn").textContent=authed?"⏻ "+(session.user.email||"Sign out"):"🔒 Sign in";
+  if(authed){ boot(); }
+}
+$("authBtn").onclick=async()=>{ if(session&&sb){ await sb.auth.signOut(); session=null; DATA=null; applyAuth(); } else $("authEmail").focus(); };
+$("sendLink").onclick=async()=>{
+  const email=($("authEmail").value||"").trim();
+  if(!email){ $("authMsg").textContent="Enter your email address."; return; }
+  $("sendLink").disabled=true; $("authMsg").textContent="Sending…";
+  const {error}=await sb.auth.signInWithOtp({email,options:{shouldCreateUser:false,emailRedirectTo:location.origin+location.pathname}});
+  $("authMsg").textContent=error?("Couldn’t send: "+error.message):"Check your email for a login link, then return here.";
+  $("sendLink").disabled=false;
+};
+$("authEmail").addEventListener("keydown",e=>{ if(e.key==="Enter") $("sendLink").click(); });
+
+/* ---------- filters ---------- */
+function presetRange(v){
+  const t=ymd(new Date());
+  if(v==="mtd") return [t.slice(0,8)+"01",t];
+  if(v==="lm"){ const d=new Date(); d.setDate(1); d.setMonth(d.getMonth()-1); const f=ymd(d); const e=new Date(d.getFullYear(),d.getMonth()+1,0); return [f,ymd(e)]; }
+  const n=Number(v)||30; return [addDays(t,-(n-1)),t];
+}
+$("preset").onchange=()=>{
+  const v=$("preset").value;
+  $("customRange").hidden=v!=="custom";
+  if(v==="custom"){ $("dFrom").value=RANGE[0]; $("dTo").value=RANGE[1]; return; }
+  RANGE=presetRange(v); page=0; load();
+};
+$("applyRange").onclick=()=>{
+  const f=$("dFrom").value,t=$("dTo").value;
+  if(!f||!t||t<f){ showErr("Pick a start date on or before the end date."); return; }
+  RANGE=[f,t]; page=0; load();
+};
+$("outcome").onchange=()=>{ page=0; load(); };
+$("tests").onchange=()=>{ page=0; load(); };
+
+function renderChips(){
+  $("sourceChips").innerHTML=SOURCES.map(([k,l])=>`<button type="button" class="chip" data-k="${k}" aria-pressed="${SRCSEL.has(k)}">${esc(l)}</button>`).join("");
+  $("sourceChips").querySelectorAll(".chip").forEach(b=>b.onclick=()=>{
+    const k=b.dataset.k; if(SRCSEL.has(k)) SRCSEL.delete(k); else SRCSEL.add(k);
+    if(!SRCSEL.size) SOURCES.forEach(s=>SRCSEL.add(s[0]));   // empty = all
+    renderChips(); page=0; load();
+  });
+}
+
+/* club multi-select */
+function clubLabel(n){ return n&&CLUBS[n]?CLUBS[n]+" ("+n+")":(n?"Club "+n:"No club"); }
+function renderClubList(){
+  const q=($("clubSearch").value||"").toLowerCase();
+  const items=Object.keys(CLUBS).sort((a,b)=>CLUBS[a].localeCompare(CLUBS[b]))
+    .filter(n=>!q||CLUBS[n].toLowerCase().includes(q)||n.includes(q));
+  $("clubList").innerHTML=items.map(n=>`<label><input type="checkbox" value="${esc(n)}" ${SEL.has(n)?"checked":""}> ${esc(clubLabel(n))}</label>`).join("")||'<div class="muted" style="padding:6px">No match</div>';
+  $("clubList").querySelectorAll("input").forEach(i=>i.onchange=()=>{ if(i.checked) SEL.add(i.value); else SEL.delete(i.value); updClubBtn(); clubDirty=true; });
+}
+let clubDirty=false;
+function updClubBtn(){
+  const t=SEL.size?(SEL.size===1?clubLabel([...SEL][0]):SEL.size+" clubs"):"All clubs";
+  $("clubBtn").innerHTML=esc(t)+" &#9662;"; $("clubCountLbl").textContent=t;
+}
+function closeClubPanel(){ if(!$("clubPanel").classList.contains("open")) return; $("clubPanel").classList.remove("open"); $("clubBtn").setAttribute("aria-expanded","false"); if(clubDirty){ clubDirty=false; page=0; load(); } }
+$("clubBtn").onclick=e=>{ e.stopPropagation(); const o=$("clubPanel").classList.toggle("open"); $("clubBtn").setAttribute("aria-expanded",String(o)); if(o){ renderClubList(); $("clubSearch").focus(); } else closeClubPanel(); };
+$("clubSearch").oninput=renderClubList;
+$("clubClear").onclick=e=>{ e.preventDefault(); SEL.clear(); updClubBtn(); renderClubList(); clubDirty=true; };
+document.addEventListener("click",e=>{ if(!$("clubSel").contains(e.target)) closeClubPanel(); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeClubPanel(); });
+
+function args(from,to,limit){
+  const o=$("outcome").value;
+  return {p_from:from,p_to:to,
+    p_locations:SEL.size?[...SEL]:null,
+    p_sources:SRCSEL.size===SOURCES.length?null:[...SRCSEL],
+    p_outcomes:o?OUTCOME_SETS[o]:null,
+    p_limit:limit,p_include_tests:$("tests").checked};
+}
+
+/* ---------- load ---------- */
+function showErr(m){ $("errNote").hidden=!m; $("errNote").textContent=m||""; }
+let booted=false;
+async function boot(){
+  if(booted){ load(); return; } booted=true;
+  renderChips();
+  RANGE=presetRange("30");
+  try{ const m=await rpc("club_names_map",{}); CLUBS={}; Object.keys(m||{}).forEach(k=>{ const n=String(k).replace(/\D/g,"").replace(/^0+/,""); if(n) CLUBS[n]=m[k]; }); }catch(_e){}
+  updClubBtn();
+  load();
+}
+async function load(){
+  const seq=++loadSeq;
+  showErr("");
+  const span=days(RANGE[0],RANGE[1])+1;
+  $("rangeNote").hidden=span<=MAX_VIEW_DAYS;
+  if(span>MAX_VIEW_DAYS){
+    $("rangeNote").textContent=`${intf(span)} days selected. The on-screen view covers up to ${MAX_VIEW_DAYS} days at a time, so it shows the last ${MAX_VIEW_DAYS} days of your range. Export CSV covers the whole range (fetched month by month).`;
+  }
+  const viewFrom=span>MAX_VIEW_DAYS?addDays(RANGE[1],-(MAX_VIEW_DAYS-1)):RANGE[0];
+  setLoading(true);
+  try{
+    const d=await rpc("report_leads",args(viewFrom,RANGE[1],5000),true);
+    if(seq!==loadSeq) return;
+    DATA=d; DATA._from=viewFrom; DATA._to=RANGE[1];
+    render();
+    if(d&&d.is_admin) loadAdmin();
+  }catch(e){
+    if(seq!==loadSeq) return;
+    if(e.status===401||e.status===403){ showErr("Your sign-in has expired or isn’t authorized for this page. Sign out and sign in again."); }
+    else showErr("Couldn’t load leads ("+e.message+"). Try again in a moment; if it keeps happening, try a shorter range.");
+    DATA=null; render();
+  }finally{ if(seq===loadSeq) setLoading(false); }
+}
+function setLoading(on){ document.body.style.cursor=on?"progress":""; $("exportBtn").disabled=on; ["kLeads","kPeople","kOnline","kInclub","kRate","kDays"].forEach(id=>{ if(on) $(id).style.opacity=".45"; else $(id).style.opacity=""; }); }
+
+/* ---------- render ---------- */
+function render(){
+  const s=DATA&&DATA.summary||{};
+  const people=Number(s.people)||0, on=Number(s.joined_online_people)||0, ic=Number(s.joined_in_club_people)||0;
+  $("kLeads").textContent=DATA?intf(s.leads):"–";
+  $("kLeadsH").textContent=DATA?(fmtDate(DATA._from)+" – "+fmtDate(DATA._to)):"";
+  $("kPeople").textContent=DATA?intf(people):"–";
+  $("kOnline").textContent=DATA?intf(on):"–";
+  $("kInclub").textContent=DATA?intf(ic):"–";
+  $("kRate").textContent=DATA?pct(on+ic,people):"–";
+  $("kDays").textContent=DATA&&s.median_days_in_club!=null?String(Math.round(s.median_days_in_club)):"–";
+  renderCoverage(); renderChart(); renderSources(); renderClubs(); renderRows();
+}
+function renderCoverage(){
+  const c=DATA&&DATA.coverage; const el=$("coverage");
+  if(!c){ el.textContent=""; el.hidden=true; return; } el.hidden=false;
+  const nc=Number(DATA.summary.not_checked)||0;
+  let abc;
+  if(!c.abc_master_enabled||!c.clubs_enabled) abc=`<strong>ABC in-club matching is off</strong> — ${c.clubs_enabled?intf(c.clubs_enabled)+" clubs are enabled but the master switch is off":"no clubs are enabled"}. In-club joins below come from the iCart kiosk only.`;
+  else abc=`<strong>ABC matching on for ${intf(c.clubs_enabled)} of ${intf(c.clubs_total)} clubs</strong>, read ${c.pulled_from_min?"from "+fmtDate(c.pulled_from_min)+" ":""}through ${c.pulled_through_min?fmtDate(c.pulled_through_min):"(first pull pending)"}${c.pulled_through_max&&c.pulled_through_max!==c.pulled_through_min?" – "+fmtDate(c.pulled_through_max):""}. ${c.last_run_at?"Last pull "+fmtTs(c.last_run_at)+".":""}`;
+  const web=c.web_leads_since?`Website form leads recorded since ${fmtDate(c.web_leads_since)}.`:`<strong>No website form leads received yet</strong> — the four workoutanytime.com forms (Free Trial, Book a Tour, Contact, Charter) send them here as people submit.`;
+  el.className="note"+((!c.abc_master_enabled||!c.web_leads_since)?" warn":"");
+  el.innerHTML=`${abc} ${nc?intf(nc)+" leads are <em>not checked yet</em> (ABC not read for their club/date).":""}<br>${web} Matching window: ${intf(c.window_days)} days after the lead.`;
+}
+function renderChart(){
+  const el=$("chart"), w=(DATA&&DATA.by_week)||[];
+  if(!w.length){ el.innerHTML='<p class="cap">No leads in this range.</p>'; return; }
+  const W=Math.max(320,el.clientWidth||900), H=220, L=44, R=8, T=10, B=26;
+  const max=Math.max(1,...w.map(x=>x.leads)); const nice=niceMax(max);
+  const bw=(W-L-R)/w.length, gap=Math.min(8,bw*.25);
+  const y=v=>T+(H-T-B)*(1-v/nice);
+  let g="";
+  for(let i=0;i<=4;i++){ const v=nice*i/4, yy=y(v); g+=`<line class="${i?"gl":"baseline"}" x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}"/><text class="axis" x="${L-6}" y="${yy+4}" text-anchor="end">${intf(v)}</text>`; }
+  const every=Math.ceil(w.length/Math.max(1,Math.floor((W-L)/70)));
+  w.forEach((x,i)=>{
+    const x0=L+i*bw+gap/2, bwi=Math.max(2,bw-gap), on=x.joined_online, ic=x.joined_in_club, rest=Math.max(0,x.leads-on-ic);
+    let yy=y(0); const seg=(v,c)=>{ if(!v) return ""; const h=y(0)-y(v); yy-=h; return `<rect x="${x0}" y="${yy}" width="${bwi}" height="${Math.max(0,h-1)}" rx="2" fill="var(${c})"/>`; };
+    const tip=`Week of ${fmtDate(x.week)} · ${intf(x.leads)} leads (${intf(x.web_leads)} website) · ${intf(on)} online · ${intf(ic)} in club`;
+    g+=`<g class="bar" data-tip="${esc(tip)}">${seg(on,"--blue")}${seg(ic,"--teal")}${seg(rest,"--rest")}<rect x="${x0}" y="${T}" width="${bwi}" height="${H-T-B}" fill="transparent"/></g>`;
+    if(i%every===0) g+=`<text class="axis" x="${x0+bwi/2}" y="${H-8}" text-anchor="middle">${new Date(x.week+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric"})}</text>`;
+  });
+  el.innerHTML=`<svg viewBox="0 0 ${W} ${H}" height="${H}" role="img" aria-label="Weekly leads split by outcome">${g}</svg>`;
+  const tip=$("tip");
+  el.querySelectorAll(".bar").forEach(b=>{
+    b.addEventListener("mousemove",e=>{ tip.textContent=b.dataset.tip; tip.style.opacity=1; tip.style.left=Math.min(e.clientX+12,innerWidth-tip.offsetWidth-8)+"px"; tip.style.top=(e.clientY+12)+"px"; });
+    b.addEventListener("mouseleave",()=>tip.style.opacity=0);
+  });
+}
+function niceMax(v){ const p=Math.pow(10,Math.floor(Math.log10(v))); const f=v/p; return (f<=1?1:f<=2?2:f<=5?5:10)*p; }
+function renderSources(){
+  const r=(DATA&&DATA.by_source)||[];
+  $("srcTable").innerHTML=`<thead><tr><th>Source</th><th>Leads</th><th>Online</th><th>In club</th><th>Join rate</th></tr></thead><tbody>`+
+    (r.length?r.map(x=>`<tr><td>${esc(SRC[x.source]||x.source)}</td><td>${intf(x.leads)}</td><td>${intf(x.joined_online)}</td><td>${intf(x.joined_in_club)}</td><td>${pct(x.joined_online+x.joined_in_club,x.leads)}</td></tr>`).join("")
+     :`<tr><td colspan="5" class="muted">No leads in this range.</td></tr>`)+"</tbody>";
+}
+function renderClubs(){
+  const r=(DATA&&DATA.by_club)||[]; const shown=showAllClubs?r:r.slice(0,12);
+  $("clubTable").innerHTML=`<thead><tr><th>Club</th><th>Leads</th><th>Website</th><th>Online</th><th>In club</th></tr></thead><tbody>`+
+    (shown.length?shown.map(x=>`<tr><td class="trunc" title="${esc(clubLabel(x.location))}">${esc(x.club_name||clubLabel(x.location))}</td><td>${intf(x.leads)}</td><td>${intf(x.web_leads)}</td><td>${intf(x.joined_online)}</td><td>${intf(x.joined_in_club)}</td></tr>`).join("")
+     :`<tr><td colspan="5" class="muted">No leads in this range.</td></tr>`)+"</tbody>";
+  $("clubMore").hidden=r.length<=12; $("clubMore").textContent=showAllClubs?"Show top 12":`Show all ${r.length} clubs`;
+}
+$("clubMore").onclick=()=>{ showAllClubs=!showAllClubs; renderClubs(); };
+function renderRows(){
+  const rows=(DATA&&DATA.rows)||[], total=(DATA&&DATA.rows_total)||0;
+  const pages=Math.max(1,Math.ceil(rows.length/PAGE)); page=Math.min(page,pages-1);
+  const sl=rows.slice(page*PAGE,page*PAGE+PAGE);
+  $("rowsCap").textContent=total>rows.length?`Newest first. Showing the newest ${intf(rows.length)} of ${intf(total)} — export CSV for all of them.`:`Newest first. ${intf(total)} leads.`;
+  $("rowTable").innerHTML=`<thead><tr><th>Date</th><th class="l">Name</th><th class="l">Email</th><th class="l">Phone</th><th class="l">Source</th><th class="l">Club</th><th class="l">Outcome</th><th>Joined</th><th>Days</th><th class="l">Matched by</th></tr></thead><tbody>`+
+    (sl.length?sl.map(x=>`<tr><td>${esc(fmtDate(x.lead_date))}</td><td class="l trunc">${esc([x.first_name,x.last_name].filter(Boolean).join(" "))}</td><td class="l trunc">${esc(x.email)}</td><td class="l">${esc(x.phone)}</td><td class="l">${esc(SRC[x.source]||x.source)}</td><td class="l trunc">${esc(x.location?clubLabel(x.location):"")}</td><td class="l"><span class="pill ${esc(x.outcome)}">${esc(OUT[x.outcome]||x.outcome)}</span></td><td>${esc(fmtDate(x.joined_on))}</td><td>${x.days_to_join==null?"":x.days_to_join}</td><td class="l">${esc(x.match_method||"")}</td></tr>`).join("")
+     :`<tr><td colspan="10" class="muted">No leads match these filters.</td></tr>`)+"</tbody>";
+  $("pageLbl").textContent=rows.length?`Page ${page+1} of ${pages}`:"";
+  $("prevPg").disabled=page<=0; $("nextPg").disabled=page>=pages-1;
+}
+$("prevPg").onclick=()=>{ page--; renderRows(); };
+$("nextPg").onclick=()=>{ page++; renderRows(); };
+let rT; addEventListener("resize",()=>{ clearTimeout(rT); rT=setTimeout(()=>{ if(DATA) renderChart(); },150); });
+
+/* ---------- CSV export (whole range, month by month) ---------- */
+const CSV_HEAD=["Lead date","Lead time (UTC)","Source","Club #","Club","First name","Last name","Email","Phone","Plan / club as entered",
+  "Outcome","Joined on","Days to join","Matched by","ABC member ID","ABC club #","ABC plan","ABC entry source","ABC salesperson","UTM source","UTM campaign"];
+function cell(v){ let s=v==null?"":String(v); if(/^[=+\-@\t\r]/.test(s)) s="'"+s; return /[",\n\r]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
+function chunks(from,to){
+  const out=[]; let a=from;
+  while(a<=to){ const d=new Date(a+"T12:00:00"); const end=ymd(new Date(d.getFullYear(),d.getMonth()+1,0)); const b=end<to?end:to; out.push([a,b]); a=addDays(b,1); }
+  return out;
+}
+$("exportBtn").onclick=async()=>{
+  const btn=$("exportBtn"), orig=btn.innerHTML; btn.disabled=true; showErr("");
+  try{
+    const parts=chunks(RANGE[0],RANGE[1]); const all=[];
+    for(let i=0;i<parts.length;i++){
+      btn.textContent=parts.length>1?`Exporting ${i+1}/${parts.length}…`:"Exporting…";
+      const d=await rpc("report_leads",args(parts[i][0],parts[i][1],50000),true);
+      (d.rows||[]).forEach(x=>all.push(x));
+    }
+    all.sort((a,b)=>String(b.lead_at).localeCompare(String(a.lead_at)));
+    const lines=[CSV_HEAD.join(",")].concat(all.map(x=>[x.lead_date,x.lead_at,SRC[x.source]||x.source,x.location,x.location&&CLUBS[x.location]||"",
+      x.first_name,x.last_name,x.email,x.phone,x.detail,OUT[x.outcome]||x.outcome,x.joined_on,x.days_to_join,x.match_method,
+      x.member_id,x.match_club,x.abc_plan,x.abc_entry_source,x.abc_sales_person,x.utm_source,x.utm_campaign].map(cell).join(",")));
+    const blob=new Blob(["﻿"+lines.join("\r\n")],{type:"text/csv;charset=utf-8"}), a=document.createElement("a");
+    const club=SEL.size===1?"_club-"+[...SEL][0]:(SEL.size?"_"+SEL.size+"-clubs":"");
+    a.href=URL.createObjectURL(blob); a.download=`woat-leads_${RANGE[0]}_to_${RANGE[1]}${club}.csv`; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),1500);
+  }catch(e){ showErr("Export failed ("+e.message+"). Nothing was downloaded."); }
+  finally{ btn.disabled=false; btn.innerHTML=orig; }
+};
+
+/* ---------- admin: ABC pull toggles ---------- */
+let pendingMaster=null;
+async function loadAdmin(){
+  try{ ADMIN=await rpc("abc_pull_admin_get",{},true); }catch(_e){ ADMIN=null; }
+  $("adminCard").hidden=!(ADMIN&&ADMIN.is_admin);
+  if(ADMIN&&ADMIN.is_admin) renderAdmin();
+}
+function shownClubs(){ const q=($("admSearch").value||"").toLowerCase(); return (ADMIN.clubs||[]).filter(c=>!q||(c.club_name||"").toLowerCase().includes(q)||c.club_number.includes(q)); }
+function estCalls(){ return Math.round((ADMIN.clubs||[]).reduce((s,c)=>s+(c.enabled?(c.cadence==="daily"?30.4:4.35):0),0)); }
+function renderAdmin(){
+  $("masterSw").checked=!!ADMIN.master_enabled;
+  const en=(ADMIN.clubs||[]).filter(c=>c.enabled).length;
+  $("costEst").textContent=`${en} club${en===1?"":"s"} enabled · about ${intf(estCalls())} ABC calls / month at current settings${ADMIN.master_enabled?"":" (none while the master switch is off)"} · cap ${esc(ADMIN.max_calls_per_run)} calls per run`;
+  const rows=shownClubs();
+  $("admTable").innerHTML=`<thead><tr><th>Club</th><th>On</th><th>Cadence</th><th>Read from</th><th>Read through</th><th>Last run</th><th>Calls</th><th>New members</th></tr></thead><tbody>`+
+    rows.map(c=>`<tr><td class="trunc">${esc((c.club_name||"Club")+" ("+c.club_number+")")}</td>
+      <td><input type="checkbox" data-club="${esc(c.club_number)}" class="admOn" ${c.enabled?"checked":""} aria-label="Enable ${esc(c.club_name||c.club_number)}"></td>
+      <td><select data-club="${esc(c.club_number)}" class="admCad" aria-label="Cadence for ${esc(c.club_name||c.club_number)}"><option value="weekly" ${c.cadence==="weekly"?"selected":""}>Weekly</option><option value="daily" ${c.cadence==="daily"?"selected":""}>Daily</option></select></td>
+      <td>${esc(fmtDate(c.pulled_from))}</td><td>${esc(fmtDate(c.last_pulled_through))}</td>
+      <td title="${esc(c.last_status||"")}">${c.last_run_at?esc(fmtTs(c.last_run_at))+(c.last_status&&c.last_status!=="ok"?" ⚠":""):""}</td>
+      <td>${c.last_calls==null?"":c.last_calls}</td><td>${c.last_rows==null?"":intf(c.last_rows)}</td></tr>`).join("")+"</tbody>";
+  $("admTable").querySelectorAll(".admOn").forEach(i=>i.onchange=()=>setClubs([i.dataset.club],i.checked,null,i));
+  $("admTable").querySelectorAll(".admCad").forEach(s=>s.onchange=()=>setClubs([s.dataset.club],null,s.value,s));
+}
+async function setClubs(list,enabled,cadence,el){
+  if(el) el.disabled=true; $("admMsg").textContent="Saving…";
+  try{ const n=await rpc("abc_pull_admin_set",{p_clubs:list,p_enabled:enabled,p_cadence:cadence},true); $("admMsg").textContent=`Saved (${n} club${n===1?"":"s"}).`; }
+  catch(e){ $("admMsg").textContent="Not saved: "+e.message; }
+  await loadAdmin();
+}
+$("admSearch").oninput=()=>ADMIN&&renderAdmin();
+$("admAllOn").onclick=()=>{ const l=shownClubs().map(c=>c.club_number); if(l.length) setClubs(l,true,null); };
+$("admAllOff").onclick=()=>{ const l=shownClubs().map(c=>c.club_number); if(l.length) setClubs(l,false,null); };
+$("admCadence").onchange=()=>{ const v=$("admCadence").value; $("admCadence").value=""; const l=shownClubs().map(c=>c.club_number); if(v&&l.length) setClubs(l,null,v); };
+$("masterSw").onchange=()=>{
+  pendingMaster=$("masterSw").checked; $("masterSw").checked=!pendingMaster;
+  $("masterConfirmMsg").textContent=pendingMaster
+    ?`Turn ABC pulls ON? The next worker run will call ABC for ${(ADMIN.clubs||[]).filter(c=>c.enabled).length} enabled clubs (about ${intf(estCalls())} calls a month; the first pull for each club reads 90 days).`
+    :"Turn ABC pulls OFF? No further ABC calls will be made; existing matches stay.";
+  $("masterConfirm").style.display="block"; $("masterYes").focus();
+};
+$("masterNo").onclick=()=>{ $("masterConfirm").style.display="none"; pendingMaster=null; };
+$("masterYes").onclick=async()=>{
+  $("masterConfirm").style.display="none";
+  try{ await rpc("abc_pull_admin_master",{p_enabled:pendingMaster},true); $("admMsg").textContent=pendingMaster?"Master switch on.":"Master switch off."; }
+  catch(e){ $("admMsg").textContent="Not saved: "+e.message; }
+  pendingMaster=null; await loadAdmin(); load();
+};
+
+initAuth();
+})();
+</script>
+</body>
+</html>
