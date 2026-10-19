@@ -489,6 +489,29 @@
     </table>
   </div>
 
+  <!-- Website form submissions card (2026-10-18): workoutanytime.com Formidable forms (Free Trial, Book a Tour,
+       Charter, Contact Us) from web_leads, read through report_web_leads (anon, aggregates only, no personal data).
+       Follows the page's date range and club filter; plan / ad account / platform filters do not apply.
+       Contact Us is shown on its own row and is not counted as a lead (Nate, 2026-10-18).
+       Series colours are card-scoped (--wf-*) and validated for both themes; page-wide tokens are untouched. -->
+  <style>
+  #wfCard{--wf-lead:#2F5FC4;--wf-contact:#C9701A}
+  @media (prefers-color-scheme: dark){ :root:where(:not([data-theme="light"])) #wfCard{--wf-lead:#4F7AD8;--wf-contact:#CC7A28} }
+  :root[data-theme="dark"] #wfCard{--wf-lead:#4F7AD8;--wf-contact:#CC7A28}
+  #wfCard .wf-lbl{color:var(--muted);margin:16px 0 2px;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em}
+  #wfCard .wf-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:6px}
+  #wfCard .wf-scroll{overflow-x:auto;overflow-y:auto}
+  #wfCard tr.wf-total td{font-weight:650}
+  #wfCard tr.wf-contact td{color:var(--text2)}
+  #wfCard .wf-src td:nth-child(-n+3),#wfCard .wf-src th:nth-child(-n+3){text-align:left;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:normal}
+  #wfCard .wf-none{color:var(--muted)}
+  </style>
+  <div class="card" id="wfCard" style="display:none">
+    <h2>Website form submissions <span style="font-weight:600;color:var(--muted);font-size:12px;margin-left:4px">&middot; workoutanytime.com</span></h2>
+    <p class="cap" id="wfCap">Free Trial, Book a Tour and Charter Membership forms submitted on workoutanytime.com (the leads), plus Contact Us on its own row.</p>
+    <div id="wfBody"></div>
+  </div>
+
   <!-- Checkout errors card (2026-09-24): reads report_checkout_errors (anon, no personal data);
        signed-in users also get name / email / phone from report_checkout_errors_detail. -->
   <div class="card" id="errCard" style="display:none">
@@ -757,7 +780,7 @@ function render(){
   document.getElementById("kpis").innerHTML=kpiDefs(s).map(k=>`<div class="tile${k.muted?" muted":""}"${k.title?` title="${escAttr(k.title)}"`:""}><div class="label">${k.label}</div><div class="val">${k.val}</div>${SHOWDELTAS?`<div class="delta" id="d_${k.key}"></div>`:""}</div>`).join("");
   if(SHOWDELTAS) applyDeltas();
   renderDataNotes();
-  drawLine(); renderPlans(); drawBars(); renderPlatforms(); renderUtms(); renderErrors();
+  drawLine(); renderPlans(); drawBars(); renderPlatforms(); renderUtms(); renderErrors(); renderWebForms();
   document.getElementById("foot").textContent="Live from the iCart database · unique-person counts · range "+DATA.from+" to "+DATA.to+".";
 }
 
@@ -1000,6 +1023,148 @@ function drawErrDays(days){
   const every=Math.max(1,Math.ceil(pts.length/8)); pts.forEach((p,i)=>{ const lastI=pts.length-1; if((i%every===0&&lastI-i>=every/2)||i===lastI) g+=`<text class="axis" x="${x(i)}" y="${H-6}" text-anchor="middle">${p.label}</text>`; });
   let hits=""; pts.forEach((p,i)=>{ hits+=`<rect x="${x(i)-iw/pts.length/2}" y="${P.t}" width="${Math.max(2,iw/pts.length)}" height="${ih}" fill="transparent" onmousemove="showTip('<b>${p.k}</b><br>Join errors: ${p.s}<br>Form blocks: ${p.v}<br>Blank pricing: ${p.p}',event)" onmouseleave="hideTip()"/>`; });
   host.innerHTML=`<div class="legend" style="margin-bottom:4px"><span><i class="swatch" style="background:var(--red)"></i>Join errors</span><span><i class="swatch" style="background:var(--conv)"></i>Form blocks</span><span><i class="swatch" style="background:var(--blue)"></i>Blank pricing</span><span style="color:var(--muted)">per day</span></div><svg viewBox="0 0 ${W} ${H}">${g}${line("p",cssv('--blue'))}${line("v",cssv('--conv'))}${line("s",cssv('--red'))}${hits}</svg>`;
+}
+
+// ---- Website form submissions card (2026-10-18) ------------------------------------------------------
+// One report_web_leads call per page load / filter change, no retry: a failed call shows one line and stops
+// (never loops — see the retry-storm backlog item). Aggregates only; the RPC returns no names/emails/phones.
+let WF_DATA=null, WF_KEY=null;
+const WF_FORMS=[["free_trial","Free Trial"],["book_tour","Book a Tour"],["charter","Charter Membership"]];
+async function renderWebForms(){
+  const card=document.getElementById("wfCard"), body=document.getElementById("wfBody");
+  if(!RANGE||!card) return;
+  card.style.display="block";
+  const args={p_from:RANGE[0],p_to:RANGE[1],p_locations:locArg()};
+  const key=JSON.stringify(args); WF_KEY=key;
+  try{
+    const r=await fetch(SUPA+"/rest/v1/rpc/report_web_leads",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(args)});
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const j=await r.json(); if(WF_KEY!==key) return;
+    WF_DATA=j; drawWebForms();
+  }catch(e){ if(WF_KEY===key){ WF_DATA=null; body.innerHTML=`<p class="cap" style="margin:4px 0 10px">Couldn&rsquo;t load website form submissions (${esc(e.message)}). Click &#8635; Refresh to try again.</p>`; } }
+}
+
+function drawWebForms(){
+  const body=document.getElementById("wfBody"), cap=document.getElementById("wfCap"), j=WF_DATA||{}, s=j.summary||{};
+  const since=String(j.tracking_since||"").slice(0,10);   // UTC day of the first stored submission (Apr 1 2026 backfill)
+  const sinceTxt=since?new Date(since+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}):"";
+  const win=n(j.window_days)||90, notes=[];
+  if(PLANFILTER||ACCOUNTFILTER||PLATFILTER) notes.push("The plan, ad-account and platform filters don&rsquo;t apply to website forms: this card shows every form for the selected dates"+(LOCFILTER.length?" and clubs":"")+".");
+  if(since && RANGE[0]<since) notes.push("Website forms are tracked from "+esc(sinceTxt)+"; nothing before that date is counted.");
+  cap.innerHTML=`Forms submitted on workoutanytime.com in the selected range. <b>Leads</b> = Free Trial + Book a Tour + Charter Membership. <b>Contact Us</b> is shown on its own row and not counted as a lead &mdash; most of those messages are service requests (cancellations, billing). Counts are submissions; <b>People</b> counts each email (or phone) once.`+(notes.length?" "+notes.join(" "):"");
+  if(since && RANGE[1]<since){ body.innerHTML=`<p class="cap" style="margin:4px 0 10px">No form data for this range &mdash; website forms are tracked from ${esc(sinceTxt)}.</p>`; return; }
+  if(!n(s.submissions)){ body.innerHTML=`<p class="cap" style="margin:4px 0 10px">No website form submissions in this range.</p>`; return; }
+
+  const tile=(lab,val,sub,title,muted)=>`<div class="tile${muted?" muted":""}"${title?` title="${escAttr(title)}"`:""}><div class="label">${lab}</div><div class="val">${val}</div>${sub?`<div class="delta flat">${sub}</div>`:""}</div>`;
+  const lp=n(s.lead_people), jo=n(s.joined_online_people), ld=n(s.leads);
+  let h=`<div class="wf-tiles">`+
+    tile("Form leads",fmt(ld),"Free Trial, Tour, Charter","Free Trial, Book a Tour and Charter Membership submissions in this range, repeats included.")+
+    tile("People",fmt(lp),"unique","Lead-form people: each email counted once (phone when there is no email).")+
+    tile("Joined online",fmt(jo),lp?pct(100*jo/lp)+" of people":"","People from the lead forms who completed an online join (www or ACH checkout, same email) within "+win+" days of the form.")+
+    tile("UTM-tagged",ld?pct(100*n(s.leads_tagged)/ld):"—",fmt(s.leads_tagged)+" of "+fmt(ld)+" leads","Lead-form submissions that carried a utm_source or utm_campaign. Book a Tour sends a campaign only.")+
+    tile("Contact Us",fmt(s.contact),"not counted as leads","Contact Us submissions — mostly service requests (cancellations, billing), so kept out of the lead totals.",true)+
+    tile("Clubs",fmt(s.clubs),n(s.no_club)?fmt(s.no_club)+" with no club":"","Clubs with at least one submission in this range.");
+  h+=`</div><p style="font-size:11.5px;color:var(--muted);margin:6px 2px 0">&ldquo;Joined online&rdquo; = the same email completed a www or ACH checkout within ${win} days of the form (kiosk excluded). Joins made at the club are not in this data, and leads from the last ${win} days can still join, so it is a floor.</p>`;
+
+  // By form — the three lead forms, their total (people deduped across forms), then Contact Us on its own row.
+  const bf={}; (j.by_form||[]).forEach(x=>{ bf[x.form]=x; });
+  const known={free_trial:1,book_tour:1,charter:1,contact:1};
+  const frow=(label,x,cls)=>{ const p=n(x.people), q=n(x.joined_online_people), c=cls==="wf-contact";
+    return `<tr${cls?` class="${cls}"`:""}><td>${label}</td><td>${fmt(x.submissions)}</td><td>${fmt(p)}</td><td>${c?"—":fmt(q)}</td><td>${c?"—":(p?pct(100*q/p):"—")}</td><td>${c?"—":fmt(x.tagged)}</td></tr>`; };
+  h+=`<div class="wf-lbl">By form</div><div class="wf-scroll"><table id="wfFormTable"><thead><tr><th>Form</th><th>Submissions</th><th>People</th><th>Joined online</th><th title="Joined online ÷ people">Joined %</th><th>UTM-tagged</th></tr></thead><tbody>`+
+    WF_FORMS.map(([k,l])=>frow(l,bf[k]||{})).join("")+
+    Object.keys(bf).filter(k=>!known[k]).map(k=>frow(esc(k),bf[k])).join("")+
+    frow("All lead forms",{submissions:s.leads,people:s.lead_people,joined_online_people:s.joined_online_people,tagged:s.leads_tagged},"wf-total")+
+    frow('Contact Us <span style="color:var(--muted);font-size:11px">&middot; not a lead</span>',bf.contact||{},"wf-contact")+
+    `</tbody></table></div>`;
+
+  h+=`<div class="wf-lbl">Over time</div><div id="wfDays"></div>`;
+
+  // By club — aggregates only; CSV exports exactly this table.
+  const locs=(j.by_location||[]);
+  const clubCell=x=>x.location?esc(clubLabel(x.location))+` <span style="color:var(--muted)">#${esc(x.location)}</span>`:'<span class="wf-none">Club not recorded</span>';
+  h+=`<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:16px 0 2px">
+      <div class="wf-lbl" style="margin:0">By club</div>
+      <span class="cap" style="margin:0">${fmt(locs.length)} row${locs.length===1?"":"s"}</span>
+      <button type="button" id="wfCsv" style="margin-left:auto">&#8681; CSV</button></div>
+    <div class="wf-scroll" style="max-height:420px"><table id="wfLocTable"><thead><tr><th>Club</th><th>Leads</th><th>Free Trial</th><th>Book a Tour</th><th>Charter</th><th>People</th><th>Joined online</th><th>Contact Us</th></tr></thead><tbody>`+
+    locs.map(x=>`<tr><td>${clubCell(x)}</td><td>${fmt(x.leads)}</td><td>${fmt(x.free_trial)}</td><td>${fmt(x.book_tour)}</td><td>${fmt(x.charter)}</td><td>${fmt(x.lead_people)}</td><td>${fmt(x.joined_online_people)}</td><td>${fmt(x.contact)}</td></tr>`).join("")+
+    `</tbody></table></div>`;
+
+  // By campaign source — lead forms only (Contact Us carries no UTM).
+  const src=(j.by_source||[]), uv=t=>t==="(none)"?'<span class="wf-none">—</span>':esc(t);
+  h+=`<div class="wf-lbl">By campaign source &middot; lead forms</div>
+    <p class="cap" style="margin:2px 0 6px">UTM values as the forms received them, lower-cased with stray slashes removed (&ldquo;eulerity/&rdquo; counts as &ldquo;eulerity&rdquo;).</p>
+    <div class="wf-scroll" style="max-height:360px"><table class="wf-src" id="wfSrcTable"><thead><tr><th>Source</th><th>Medium</th><th>Campaign</th><th>Leads</th><th>People</th><th>Joined online</th></tr></thead><tbody>`+
+    src.map(x=>{ const un=x.utm_source==="(none)"&&x.utm_medium==="(none)"&&x.utm_campaign==="(none)";
+      const lead=un?`<td class="wf-none">Untagged</td><td class="wf-none">—</td><td class="wf-none">—</td>`:`<td title="${escAttr(x.utm_source)}">${uv(x.utm_source)}</td><td title="${escAttr(x.utm_medium)}">${uv(x.utm_medium)}</td><td title="${escAttr(x.utm_campaign)}">${uv(x.utm_campaign)}</td>`;
+      return `<tr>${lead}<td>${fmt(x.leads)}</td><td>${fmt(x.people)}</td><td>${fmt(x.joined_online_people)}</td></tr>`; }).join("")+
+    `</tbody></table></div>`;
+
+  body.innerHTML=h;
+  drawWfDays(j.by_day||[], since);
+  document.getElementById("wfCsv").onclick=()=>{
+    const q=v=>{ v=v==null?"":String(v); if(/^[=+\-@]/.test(v)) v="'"+v; return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; };
+    const head=["Club #","Club","Leads","Free Trial","Book a Tour","Charter","People","Joined online","Contact Us"];
+    const lines=[head.join(",")].concat(locs.map(x=>[x.location||"",x.location?clubLabel(x.location):"Club not recorded",x.leads,x.free_trial,x.book_tour,x.charter,x.lead_people,x.joined_online_people,x.contact].map(q).join(",")));
+    downloadText("woat-website-forms-by-club_"+RANGE[0]+"_to_"+RANGE[1]+".csv", lines.join("\n"));
+  };
+}
+
+// Daily lines (≤ 92 days) or monthly totals: Leads (three lead forms summed) and Contact Us, one axis.
+// The chart starts at the first tracked day so untracked months never read as zero.
+function drawWfDays(days, since){
+  const host=document.getElementById("wfDays"); if(!host) return;
+  const todayStr=ymd(new Date());
+  const start=(since&&RANGE[0]<since)?since:RANGE[0], end=(RANGE[1]>todayStr)?todayStr:RANGE[1];
+  const f=new Date(start+"T00:00:00"), t=new Date(end+"T00:00:00"), span=Math.round((t-f)/86400000)+1;
+  const bd={}; days.forEach(d=>{ bd[d.day]=d; });
+  const add=(p,v)=>{ p.ft+=n(v.free_trial); p.bt+=n(v.book_tour); p.ch+=n(v.charter); p.ct+=n(v.contact); };
+  let pts=[];
+  if(span<=92){
+    for(let d=new Date(f); d<=t && pts.length<800; d.setDate(d.getDate()+1)){ const k=ymd(d), p={k,label:(d.getMonth()+1)+"/"+d.getDate(),ft:0,bt:0,ch:0,ct:0}; add(p,bd[k]||{}); pts.push(p); }
+  } else {
+    const m={}; days.forEach(v=>{ if(!v.day||v.day<start||v.day>end) return; const ym=v.day.slice(0,7);
+      if(!m[ym]) m[ym]={k:MONTHS[+ym.slice(5,7)-1]+" "+ym.slice(0,4),label:MONTHS[+ym.slice(5,7)-1]+" '"+ym.slice(2,4),ft:0,bt:0,ch:0,ct:0}; add(m[ym],v); });
+    pts=Object.keys(m).sort().map(k=>m[k]);
+  }
+  pts.forEach(p=>{ p.ld=p.ft+p.bt+p.ch; });
+  if(pts.length<2){ host.innerHTML=`<p class="cap" style="margin:2px 0 6px">One ${span<=92?"day":"month"} in range &mdash; see the tables.</p>`; return; }
+  // viewBox width = the host's CSS width, so axis text stays at its real size on a phone instead of shrinking
+  const W=Math.max(300,Math.round(host.clientWidth||1000)),H=W<560?150:170,P={l:40,r:84,t:12,b:24},iw=W-P.l-P.r,ih=H-P.t-P.b;
+  const max=niceMax(Math.max(1,...pts.map(p=>Math.max(p.ld,p.ct))));
+  const x=i=>P.l+(i/(pts.length-1))*iw, y=v=>P.t+ih-(v/max)*ih;
+  let g="";
+  [max,max/2].forEach(v=>{ g+=`<line class="gl" x1="${P.l}" y1="${y(v)}" x2="${W-P.r}" y2="${y(v)}"/><text class="axis" x="${P.l-6}" y="${y(v)+4}" text-anchor="end">${fmt(v)}</text>`; });
+  g+=`<line class="baseline" x1="${P.l}" y1="${y(0)}" x2="${W-P.r}" y2="${y(0)}"/><text class="axis" x="${P.l-6}" y="${y(0)+4}" text-anchor="end">0</text>`;
+  const every=Math.max(1,Math.ceil(pts.length/(W<560?4:8))), lastI=pts.length-1;
+  pts.forEach((p,i)=>{ if((i%every===0&&lastI-i>=every/2)||i===lastI) g+=`<text class="axis" x="${x(i)}" y="${H-6}" text-anchor="middle">${p.label}</text>`; });
+  const path=k=>pts.map((p,i)=>(i?"L":"M")+x(i).toFixed(1)+" "+y(p[k]).toFixed(1)).join(" ");
+  const area="M"+x(0).toFixed(1)+" "+y(0)+" "+pts.map((p,i)=>"L"+x(i).toFixed(1)+" "+y(p.ld).toFixed(1)).join(" ")+" L"+x(lastI).toFixed(1)+" "+y(0)+" Z";
+  // direct end labels in text ink, nudged apart when the two lines end close together
+  let yl=y(pts[lastI].ld), yc=y(pts[lastI].ct); if(Math.abs(yl-yc)<13){ if(yl<=yc) yc=yl+13; else yl=yc+13; }
+  host.innerHTML=`<div class="legend" style="margin-bottom:4px"><span><i class="swatch" style="background:var(--wf-lead)"></i>Leads (Free Trial + Book a Tour + Charter)</span><span><i class="swatch" style="background:var(--wf-contact)"></i>Contact Us</span><span style="color:var(--muted)">${span<=92?"per day (UTC)":"per month"}</span></div>
+    <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Website form leads and Contact Us submissions ${span<=92?"per day":"per month"}">${g}
+      <path d="${area}" style="fill:var(--wf-lead);fill-opacity:.12;stroke:none"/>
+      <path d="${path("ld")}" style="fill:none;stroke:var(--wf-lead);stroke-width:2;stroke-linejoin:round;stroke-linecap:round"/>
+      <path d="${path("ct")}" style="fill:none;stroke:var(--wf-contact);stroke-width:2;stroke-linejoin:round;stroke-linecap:round"/>
+      <text class="axis" x="${W-P.r+8}" y="${yl+4}" style="fill:var(--text2)">Leads</text>
+      <text class="axis" x="${W-P.r+8}" y="${yc+4}" style="fill:var(--text2)">Contact Us</text>
+      <line class="wfX baseline" x1="0" x2="0" y1="${P.t}" y2="${y(0)}" style="opacity:0"/>
+      <circle class="wfDl" r="4" style="fill:var(--wf-lead);stroke:var(--surface);stroke-width:2;opacity:0"/>
+      <circle class="wfDc" r="4" style="fill:var(--wf-contact);stroke:var(--surface);stroke-width:2;opacity:0"/>
+      <rect class="wfHit" x="${P.l}" y="${P.t}" width="${iw}" height="${ih}" fill="transparent"/></svg>`;
+  const svg=host.querySelector("svg"), hit=svg.querySelector(".wfHit"), X=svg.querySelector(".wfX"), Dl=svg.querySelector(".wfDl"), Dc=svg.querySelector(".wfDc");
+  const move=e=>{ const r=svg.getBoundingClientRect(); if(!r.width) return;
+    const sx=(e.clientX-r.left)*W/r.width, i=Math.max(0,Math.min(lastI,Math.round((sx-P.l)/iw*lastI))), p=pts[i], xi=x(i);
+    X.setAttribute("x1",xi); X.setAttribute("x2",xi); X.style.opacity=1;
+    Dl.setAttribute("cx",xi); Dl.setAttribute("cy",y(p.ld)); Dl.style.opacity=1;
+    Dc.setAttribute("cx",xi); Dc.setAttribute("cy",y(p.ct)); Dc.style.opacity=1;
+    showTip(`<b>${esc(p.k)}</b><br>Leads: ${fmt(p.ld)}<br>&nbsp;&nbsp;Free Trial: ${fmt(p.ft)}<br>&nbsp;&nbsp;Book a Tour: ${fmt(p.bt)}<br>&nbsp;&nbsp;Charter: ${fmt(p.ch)}<br>Contact Us: ${fmt(p.ct)}`,e); };
+  const leave=()=>{ X.style.opacity=0; Dl.style.opacity=0; Dc.style.opacity=0; hideTip(); };
+  hit.addEventListener("mousemove",move); hit.addEventListener("mouseleave",leave);
+  hit.addEventListener("touchstart",e=>{ if(e.touches&&e.touches[0]) move(e.touches[0]); },{passive:true});
+  hit.addEventListener("touchend",leave);
 }
 
 function series(){
