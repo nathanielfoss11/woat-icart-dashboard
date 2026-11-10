@@ -658,6 +658,7 @@ th[data-sort] .arw{font-size:9px;margin-left:3px;color:var(--blue)}
 .tabnav a:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
 .tabpanel{display:none;min-width:0}
 .tabpanel.active{display:block}
+.tabpanel.stale>*{display:none!important}   /* its data failed to load: the page's status line says so */
 .tabpanel>*+*{margin-top:18px}
 .tabpanel>.grid2{margin-bottom:0}
 .tabpanel>.kpis{margin:0 0 18px}
@@ -780,6 +781,7 @@ const TABS={
 const tabFromHash=()=>{ let h=location.hash.replace(/^#/,""); try{ h=decodeURIComponent(h); }catch(_){} return Object.prototype.hasOwnProperty.call(TABS,h)?h:null; };
 let TAB=tabFromHash()||"dashboard", TAB_KEYS={}, DATA_KEY=null, DATA_P=null;
 const filterKey=()=>JSON.stringify([RANGE,PLANFILTER,ACCOUNTFILTER,PLATFILTER,LOCFILTER.slice().sort()]);
+function markStale(tab,on){ const p=document.querySelector('.tabpanel[data-tab="'+tab+'"]'); if(p) p.classList.toggle("stale",!!on); }
 function tabLoader(name,f,t,key){ const fn=(window.__TABLOADERS||{})[name]; if(fn) fn(f,t,key); }
 function showTab(){
   document.querySelectorAll(".tabpanel").forEach(p=>p.classList.toggle("active",p.dataset.tab===TAB));
@@ -789,7 +791,7 @@ function showTab(){
 }
 async function ensureData(){
   const k=filterKey(), status=document.getElementById("status");
-  if(DATA && DATA_KEY===k) return true;
+  if(DATA && DATA_KEY===k){ status.style.display="none"; return true; }   // cached; clear any error from a later failed range
   if(DATA_P && DATA_P.k===k) return DATA_P.p;
   const [from,to]=RANGE;
   status.style.display="block"; status.textContent="Loading "+from+" → "+to+" …";
@@ -826,8 +828,14 @@ async function runTab(){
   TAB_KEYS[tab]=k;
   if(def.needsData){
     const ok=await ensureData();
-    if(!ok){ if(TAB_KEYS[tab]===k) TAB_KEYS[tab]=null; return; }
+    if(!ok){
+      if(TAB_KEYS[tab]===k) TAB_KEYS[tab]=null;
+      // The header already names the new range, so never leave the previous range's numbers on screen under it.
+      if(filterKey()===k) markStale(tab,true);
+      return;
+    }
     if(filterKey()!==k) return;   // superseded by a newer load()
+    markStale(tab,false);
   } else if(!(DATA_P && DATA_P.k===k)) {
     document.getElementById("status").style.display="none";   // that line belongs to the report_filtered tabs
   }
