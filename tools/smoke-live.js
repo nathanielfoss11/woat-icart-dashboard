@@ -49,6 +49,16 @@ function expectedStrip(rows, ctx) {
   return { rows: head.length < 2 ? [] : head, other, total: all.reduce((a, f) => a + f.entries, 0) };
 }
 
+// ---- tabs (2026-11-10): the page splits its cards into tabs that load on demand. openTab() clicks the nav link when the
+// page has one and is a no-op on a page without tabs, so this one script checks either version of the page.
+async function openTab(id) {
+  const sel = `#tabnav a[data-tab="${id}"]`;
+  if (!(await page.$(sel))) return false;
+  await page.click(sel);
+  phase("opened tab " + id);
+  return true;
+}
+
 // ---- diagnostics: every phase is timestamped, and a crash dumps page state + network failures + a screenshot ----
 const t0 = Date.now(); let lastPhase = "start"; const phase = s => { lastPhase = s; console.log(`[${((Date.now() - t0) / 1000).toFixed(1)}s] ${s}`); };
 let browser, page; const pageErrors = [], consoleErrors = [], consoleAll = [], netFailed = [], netBad = [];
@@ -96,7 +106,11 @@ async function crashDiagnostics() {
   await page.waitForSelector("#kpis .tile .val", { timeout: 60000 });
   phase("tiles present; waiting for #sub to leave loading state");
   const loadErr = () => (document.getElementById("status") || { textContent: "" }).textContent.trim();   // page's own error line
-  await page.waitForFunction(() => !/loading/i.test(document.getElementById("sub").textContent) || /Couldn't load/i.test((document.getElementById("status") || { textContent: "" }).textContent), null, { timeout: 90000 }).catch(() => {});
+  // Settled = the subtitle has left "loading" AND the page's status line is hidden (data rendered) or shows its error.
+  // The tabbed page writes the subtitle before report_filtered returns, so the subtitle alone is not proof of data.
+  const settled = () => { const st = document.getElementById("status") || { textContent: "", style: {} }; const hidden = getComputedStyle(st).display === "none";
+    return (!/loading/i.test(document.getElementById("sub").textContent) && hidden) || /Couldn't load/i.test(st.textContent); };
+  await page.waitForFunction(settled, null, { timeout: 90000 }).catch(() => {});
   const status0 = await page.evaluate(loadErr);
   check("initial range loads (no 'Couldn't load the report' from the page)", !/Couldn't load/i.test(status0), status0 || "ok");
   const kpiVals = await page.$$eval("#kpis .tile .val", els => els.map(e => e.textContent.trim()));
@@ -107,6 +121,7 @@ async function crashDiagnostics() {
 
   // 2. spend card contract (caption vs blended note)
   phase("KPIs read; spend card");
+  await openTab("spend");
   await page.waitForFunction(() => { const c = document.getElementById("spCap"); return c && /Spend/.test(c.textContent); }, null, { timeout: 60000 }).catch(() => {});
   const spCap = await page.$eval("#spCap", e => e.textContent.trim()).catch(() => "");
   const spNote = await page.$eval("#spNote", e => e.textContent.trim()).catch(() => "");
@@ -115,6 +130,7 @@ async function crashDiagnostics() {
   if (cap && note) eq("blended note's API-day count equals the caption's", note[1] || note[2], cap[1]); else check("spend note/caption shapes consistent (no partial-coverage mismatch)", true, (spCap.slice(0, 60) + " / " + spNote.slice(0, 80)));
 
   phase("spend card read; strip vs report_utms");
+  await openTab("sources");
   // 3. strip vs live report_utms (same call the page makes: last 30 days = today−29 → tomorrow, Boise dates)
   const range = await page.evaluate(() => (typeof RANGE !== 'undefined' ? RANGE : null));   // RANGE is a top-level let, not a window property
   const rows = await page.evaluate(async ({ supa, anon, range }) => {
@@ -135,17 +151,19 @@ async function crashDiagnostics() {
 
   // 4. All time: coverage notes verbatim from the RPC, in period order
   phase("strip checked; switching to All time");
+  await openTab("dashboard");
   // All time = report_filtered over 2023→today: the heaviest RPC (2.5–7 s measured 2026-09-19) against the anon role's
   // 10 s statement_timeout. Run #1 crashed here because root and dev loaded it simultaneously and Postgres cancelled
   // the statements; the workflow now runs the two targets one after the other. Here it is an assertion with the load
   // time and the page's own error text, so a slow or failed All time reads as a finding, never as a script crash.
   await page.selectOption("#preset", "all");
   const tAll = Date.now();
-  await page.waitForFunction(() => /2023/.test(document.getElementById("sub").textContent) || /Couldn't load/i.test((document.getElementById("status") || { textContent: "" }).textContent), null, { timeout: 90000 }).catch(() => {});
+  await page.waitForFunction(() => { const st = document.getElementById("status") || { textContent: "" };
+    return (/2023/.test(document.getElementById("sub").textContent) && getComputedStyle(st).display === "none") || /Couldn't load/i.test(st.textContent); }, null, { timeout: 90000 }).catch(() => {});
   const allMs = Date.now() - tAll;
   const allSub = await page.$eval("#sub", e => e.textContent.trim());
-  const allStatus = await page.evaluate(loadErr);
-  const allLoaded = /2023/.test(allSub);
+  const allStatus = await page.evaluate(() => { const st = document.getElementById("status"); return st && getComputedStyle(st).display !== "none" ? st.textContent.trim() : ""; });
+  const allLoaded = /2023/.test(allSub) && !allStatus;
   check("All time loads within 90 s (report_filtered 2023→today; anon statement_timeout is 10 s)", allLoaded, allMs + " ms — sub: " + allSub + (allStatus ? " — page status: " + allStatus : ""));
   if (allLoaded) {
     await page.waitForTimeout(1500);
