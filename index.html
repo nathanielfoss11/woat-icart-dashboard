@@ -489,6 +489,27 @@
     </table>
   </div>
 
+  <!-- SMS opt-in card (2026-11-10, SUP-119): reads report_opt_in (anon, aggregates only, no personal data).
+       Follows the page's date range and all four filters. Opt-in is only known from 2026-11-09 07:30 UTC, when the
+       checkout box became optional; earlier leads are "not captured" (the box was required and always sent yes),
+       never opted in. The rate excludes not-captured people. One chart axis: daily opt-in rate as bars. -->
+  <style>
+  #oiCard .oi-tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:6px}
+  #oiCard .oi-note{font-size:11.5px;color:var(--muted);margin:8px 2px 0;line-height:1.5}
+  #oiCard .oi-lbl{color:var(--muted);margin:16px 0 2px;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em}
+  #oiCard details{margin-top:10px;font-size:12.5px}
+  #oiCard summary{cursor:pointer;color:var(--text2)}
+  #oiCard .oi-scroll{overflow-x:auto;max-height:360px;overflow-y:auto}
+  #oiCard .oi-bar{fill:var(--blue)}
+  #oiCard .oi-hov{fill:var(--text);opacity:0}
+  </style>
+  <div class="card" id="oiCard" style="display:none">
+    <h2>SMS opt-in <span style="font-weight:600;color:var(--muted);font-size:12px;margin-left:4px">&middot; iCart checkout, screen 1</span></h2>
+    <p class="cap" id="oiCap">Share of people who ticked the SMS / marketing opt-in box at checkout, for the selected dates and filters.</p>
+    <div id="oiBody"></div>
+    <p class="oi-note" id="oiNote"></p>
+  </div>
+
   <!-- Website form submissions card (2026-10-18): workoutanytime.com Formidable forms (Free Trial, Book a Tour,
        Charter, Contact Us) from web_leads, read through report_web_leads (anon, aggregates only, no personal data).
        Follows the page's date range and club filter; plan / ad account / platform filters do not apply.
@@ -780,7 +801,7 @@ function render(){
   document.getElementById("kpis").innerHTML=kpiDefs(s).map(k=>`<div class="tile${k.muted?" muted":""}"${k.title?` title="${escAttr(k.title)}"`:""}><div class="label">${k.label}</div><div class="val">${k.val}</div>${SHOWDELTAS?`<div class="delta" id="d_${k.key}"></div>`:""}</div>`).join("");
   if(SHOWDELTAS) applyDeltas();
   renderDataNotes();
-  drawLine(); renderPlans(); drawBars(); renderPlatforms(); renderUtms(); renderErrors(); renderWebForms();
+  drawLine(); renderPlans(); drawBars(); renderPlatforms(); renderUtms(); renderErrors(); renderWebForms(); renderOptIn();
   document.getElementById("foot").textContent="Live from the iCart database · unique-person counts · range "+DATA.from+" to "+DATA.to+".";
 }
 
@@ -1165,6 +1186,112 @@ function drawWfDays(days, since){
   hit.addEventListener("mousemove",move); hit.addEventListener("mouseleave",leave);
   hit.addEventListener("touchstart",e=>{ if(e.touches&&e.touches[0]) move(e.touches[0]); },{passive:true});
   hit.addEventListener("touchend",leave);
+}
+
+// ---- SMS opt-in card (2026-11-10, SUP-119) ----------------------------------------------------------
+// One report_opt_in call per page load / filter change, no retry loop. Aggregates only (no names/emails/phones).
+// The checkout box became optional at 2026-11-09 07:30 UTC; before that it was required and always sent "yes",
+// so earlier leads are NULL ("not captured") on purpose and are never shown as opted in. The rate is
+// opted_in ÷ (opted_in + opted_out) — not-captured people are excluded, and a range with no recorded choice
+// shows "—", never 0%. A range that ends before the cutover day skips the RPC entirely.
+// Plan / ad-account: sent only when set. If the server still has the 4-argument report_opt_in (PostgREST 404),
+// the card retries once without them and says so, so the page is safe on either side of the migration.
+let OI_DATA=null, OI_KEY=null, OI_IGNORED=false;
+const OI_START_DAY="2026-11-09";
+const oiDay=k=>new Date(k+"T00:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});
+async function renderOptIn(){
+  const card=document.getElementById("oiCard"), body=document.getElementById("oiBody");
+  if(!RANGE||!card) return;
+  card.style.display="block";
+  document.getElementById("oiNote").innerHTML="Opt-in tracking started <b>Nov 9, 2026, 07:30 UTC</b>, when the box became optional. Leads before then count as <b>not captured</b>: the box was required and always sent &ldquo;yes&rdquo;, so it says nothing about consent. The rate only counts people whose choice we know. Counts are unique people (one per email), like the rest of the page; days are UTC calendar days, and Nov 9 is a partial day.";
+  const args={p_from:RANGE[0],p_to:RANGE[1]};
+  if(LOCFILTER.length) args.p_locations=LOCFILTER;
+  if(PLATFILTER) args.p_platform=PLATFILTER;
+  if(PLANFILTER) args.p_plan=PLANFILTER;
+  if(ACCOUNTFILTER) args.p_account=ACCOUNTFILTER;
+  const key=JSON.stringify(args); OI_KEY=key;
+  if(RANGE[1]<OI_START_DAY){ OI_DATA=null; body.innerHTML=`<p class="note" style="margin:6px 0">Opt-in tracking starts ${oiDay(OI_START_DAY)} &mdash; there is nothing to show for this range.</p>`; return; }
+  body.innerHTML=`<p class="cap" style="margin:4px 0 10px">Loading&hellip;</p>`;
+  const call=a=>fetch(SUPA+"/rest/v1/rpc/report_opt_in",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(a)});
+  try{
+    let ignored=false, r=await call(args);
+    if(r.status===404 && (args.p_plan||args.p_account)){
+      const a2=Object.assign({},args); delete a2.p_plan; delete a2.p_account;
+      r=await call(a2); ignored=true;
+    }
+    if(!r.ok) throw new Error("HTTP "+r.status);
+    const j=await r.json(); if(OI_KEY!==key) return;
+    if(!j||!j.totals) throw new Error("unexpected response");
+    OI_DATA=j; OI_IGNORED=ignored; drawOptIn();
+  }catch(e){ if(OI_KEY===key){ OI_DATA=null; body.innerHTML=`<p class="cap" style="margin:4px 0 10px">Couldn&rsquo;t load SMS opt-in figures (${esc(e.message)}). Click &#8635; Refresh to try again.</p>`; } }
+}
+
+function drawOptIn(){
+  const body=document.getElementById("oiBody"), j=OI_DATA||{}, t=j.totals||{};
+  const ent=n(t.entries), inn=n(t.opted_in), out=n(t.opted_out), nc=n(t.not_captured), ji=n(t.joins_opted_in), jo=n(t.joins_opted_out);
+  if(!ent){ body.innerHTML=`<p class="cap" style="margin:4px 0 10px">No checkout entries in this range.</p>`; return; }
+  const rate=t.opt_in_rate==null?null:n(t.opt_in_rate);
+  const jrate=(ji+jo)?Math.round(1000*ji/(ji+jo))/10:null;   // same rounding as the RPC's opt_in_rate
+  const tile=(lab,val,sub,title,muted)=>`<div class="tile${muted?" muted":""}"${title?` title="${escAttr(title)}"`:""}><div class="label">${lab}</div><div class="val">${val}</div>${sub?`<div class="delta flat">${sub}</div>`:""}</div>`;
+  let h=`<div class="oi-tiles">`+
+    tile("Opt-in rate",rate==null?"&mdash;":pct(rate),rate==null?"no recorded choices in range":`${fmt(inn)} opted in &middot; ${fmt(out)} opted out`,"Opted in ÷ (opted in + opted out). People whose choice wasn't captured are left out.")+
+    tile("Joins who opted in",jrate==null?"&mdash;":pct(jrate),(ji+jo)?`${fmt(ji)} opted in &middot; ${fmt(jo)} opted out`:"no joins with a recorded choice","Among people who completed a join and whose choice was captured: opted in ÷ (opted in + opted out).")+
+    tile("Not captured",fmt(nc),`of ${fmt(ent)} entries`,"People in this range whose opt-in choice was not recorded — every lead before Nov 9, 2026 07:30 UTC, plus any later lead whose checkout did not send it.",true)+
+    `</div>`;
+  if(OI_IGNORED) h+=`<div class="note caveat" style="margin:8px 0 4px">Opt-in figures ignore the plan / ad-account filter; the date, club and platform filters still apply.</div>`;
+  if(inn+out>0) h+=`<div class="oi-lbl" id="oiDaysLbl"></div><div id="oiDays"></div>`;
+  // Per-day table (UTC days from the cutover on; earlier days fold into one "before" row so the rows add up to the totals).
+  const days=(j.by_day||[]), pre={entries:0,opted_in:0,opted_out:0,not_captured:0,joins:0}, post=[];
+  days.forEach(d=>{ if(String(d.day)<OI_START_DAY){ for(const k in pre) pre[k]+=n(d[k]); } else post.push(d); });
+  const trow=(lab,d,r)=>`<tr><td>${lab}</td><td>${fmt(d.entries)}</td><td>${fmt(d.opted_in)}</td><td>${fmt(d.opted_out)}</td><td>${fmt(d.not_captured)}</td><td>${r==null?'<span style="color:var(--muted)">&mdash;</span>':pct(r)}</td><td>${fmt(d.joins)}</td></tr>`;
+  h+=`<details><summary>Table view &middot; by UTC day</summary><div class="oi-scroll"><table id="oiDayTable"><thead><tr><th>Day (UTC)</th><th>Entries</th><th>Opted in</th><th>Opted out</th><th>Not captured</th><th>Opt-in rate</th><th>Joins</th></tr></thead><tbody>`+
+    (pre.entries?trow(`<span style="color:var(--text2)">Before ${oiDay(OI_START_DAY)}</span>`,pre,null):"")+
+    post.map(d=>trow(oiDay(d.day),d,d.opt_in_rate==null?null:n(d.opt_in_rate))).join("")+
+    `<tr style="font-weight:650">${trow("Total",t,rate).slice(4)}</tbody></table></div></details>`;
+  body.innerHTML=h;
+  if(inn+out>0) drawOptInDays(post);
+}
+
+// Opt-in rate per UTC day as bars on one 0–100% axis (≤ 92 days), else per month. Starts at the cutover day so
+// untracked days never read as 0%. A period with no recorded choice is a gap, not a zero bar.
+function drawOptInDays(days){
+  const host=document.getElementById("oiDays"), lbl=document.getElementById("oiDaysLbl"); if(!host) return;
+  const utcToday=new Date().toISOString().slice(0,10);
+  const start=RANGE[0]<OI_START_DAY?OI_START_DAY:RANGE[0], end=RANGE[1]>utcToday?utcToday:RANGE[1];
+  const f=new Date(start+"T00:00:00"), tt=new Date(end+"T00:00:00"), span=Math.round((tt-f)/86400000)+1;
+  const bd={}; days.forEach(d=>{ bd[d.day]=d; });
+  const mk=(k,label,v)=>({k,label,inn:n(v.opted_in),out:n(v.opted_out),nc:n(v.not_captured),ent:n(v.entries)});
+  let pts=[];
+  if(span<=92){ for(let d=new Date(f); d<=tt && pts.length<800; d.setDate(d.getDate()+1)){ const k=ymd(d); pts.push(mk(oiDay(k),(d.getMonth()+1)+"/"+d.getDate(),bd[k]||{})); } }
+  else { const m={}; days.forEach(v=>{ const ym=String(v.day).slice(0,7); const p=m[ym]||(m[ym]=mk(MONTHS[+ym.slice(5,7)-1]+" "+ym.slice(0,4),MONTHS[+ym.slice(5,7)-1]+" '"+ym.slice(2,4),{}));
+      p.inn+=n(v.opted_in); p.out+=n(v.opted_out); p.nc+=n(v.not_captured); p.ent+=n(v.entries); }); pts=Object.keys(m).sort().map(k=>m[k]); }
+  pts.forEach(p=>{ p.rate=(p.inn+p.out)?Math.round(1000*p.inn/(p.inn+p.out))/10:null; });
+  if(lbl) lbl.textContent="Opt-in rate "+(span<=92?"by UTC day":"by month");
+  if(!pts.length){ host.innerHTML=""; return; }
+  const W=Math.max(300,Math.round(host.clientWidth||1000)),H=W<560?150:170,P={l:40,r:12,t:18,b:24},iw=W-P.l-P.r,ih=H-P.t-P.b;
+  const slot=iw/pts.length, bw=Math.max(2,Math.min(36,slot*0.62)), cx=i=>P.l+(i+0.5)*slot, y=v=>P.t+ih-(v/100)*ih;
+  let g="";
+  [100,50].forEach(v=>{ g+=`<line class="gl" x1="${P.l}" y1="${y(v)}" x2="${W-P.r}" y2="${y(v)}"/><text class="axis" x="${P.l-6}" y="${y(v)+4}" text-anchor="end">${v}%</text>`; });
+  g+=`<text class="axis" x="${P.l-6}" y="${y(0)+4}" text-anchor="end">0%</text>`;
+  const every=Math.max(1,Math.ceil(pts.length/(W<560?4:8))), lastI=pts.length-1;
+  pts.forEach((p,i)=>{ if((i%every===0&&lastI-i>=every/2)||i===lastI) g+=`<text class="axis" x="${cx(i).toFixed(1)}" y="${H-6}" text-anchor="middle">${p.label}</text>`; });
+  // bars: 4px rounded data-end, square on the baseline
+  const bar=(i,v)=>{ const x0=cx(i)-bw/2, x1=cx(i)+bw/2, y0=y(0), yt=y(v), r=Math.min(4,bw/2,(y0-yt)); return `M${x0.toFixed(1)} ${y0} L${x0.toFixed(1)} ${(yt+r).toFixed(1)} Q${x0.toFixed(1)} ${yt.toFixed(1)} ${(x0+r).toFixed(1)} ${yt.toFixed(1)} L${(x1-r).toFixed(1)} ${yt.toFixed(1)} Q${x1.toFixed(1)} ${yt.toFixed(1)} ${x1.toFixed(1)} ${(yt+r).toFixed(1)} L${x1.toFixed(1)} ${y0} Z`; };
+  let bars="", hov="", hits="";
+  pts.forEach((p,i)=>{ if(p.rate==null) return; bars+=`<path class="oi-bar" d="${bar(i,p.rate)}"/>`; hov+=`<path class="oi-hov" data-i="${i}" d="${bar(i,p.rate)}"/>`; });
+  // one selective direct label: the latest period with a rate
+  let li=-1; pts.forEach((p,i)=>{ if(p.rate!=null) li=i; });
+  const lab = li>=0 ? `<text class="axis" x="${cx(li).toFixed(1)}" y="${(y(pts[li].rate)-5).toFixed(1)}" text-anchor="middle" style="fill:var(--text2);font-weight:600">${pct(pts[li].rate)}</text>` : "";
+  pts.forEach((p,i)=>{ hits+=`<rect class="oi-hit" data-i="${i}" x="${(P.l+i*slot).toFixed(1)}" y="${P.t}" width="${slot.toFixed(1)}" height="${ih}" fill="transparent"/>`; });
+  host.innerHTML=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="SMS opt-in rate ${span<=92?"per UTC day":"per month"}; the table view below lists every value">${g}${bars}${hov}<line class="baseline" x1="${P.l}" y1="${y(0)}" x2="${W-P.r}" y2="${y(0)}"/>${lab}${hits}</svg>`;
+  const svg=host.querySelector("svg");
+  const show=(e,i)=>{ const p=pts[i]; if(!p) return;
+    svg.querySelectorAll(".oi-hov").forEach(el=>{ el.style.opacity=(+el.getAttribute("data-i")===i)?.18:0; });
+    showTip(`<b>${esc(p.k)}</b><br>`+(p.rate==null?"No recorded choices":`Opt-in rate: ${pct(p.rate)}`)+`<br>Opted in: ${fmt(p.inn)} &middot; Opted out: ${fmt(p.out)}<br>Not captured: ${fmt(p.nc)}<br>Entries: ${fmt(p.ent)}`,e); };
+  const hide=()=>{ svg.querySelectorAll(".oi-hov").forEach(el=>{ el.style.opacity=0; }); hideTip(); };
+  svg.querySelectorAll(".oi-hit").forEach(el=>{ const i=+el.getAttribute("data-i");
+    el.addEventListener("mousemove",e=>show(e,i)); el.addEventListener("mouseleave",hide);
+    el.addEventListener("touchstart",e=>{ if(e.touches&&e.touches[0]) show(e.touches[0],i); },{passive:true}); el.addEventListener("touchend",hide); });
 }
 
 function series(){
