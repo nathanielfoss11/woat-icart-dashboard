@@ -726,6 +726,15 @@ let DATA=null, RANGE=null, AUTHED=false, DETAIL_CACHE=null, DETAIL_KEY=null, PLA
 let PREV=null, PREVWIN=null, CLUBFILTER="", UTMHIDE=false, LOCFILTER=[], ACCOUNTS=[];
 const SHOWDELTAS=false; // period-over-period % change on KPIs (off for now)
 const locArg=()=>LOCFILTER.length?LOCFILTER:null;
+// One retry for a server error (2026-11-10). On this database a statement timeout (Postgres 57014 → HTTP 500) usually
+// means other queries were running at the same moment, so the same call 2 s later normally succeeds. Exactly one
+// retry, never a loop; 4xx (bad input, missing function) is returned as-is.
+async function fetchRetry(url,opts){
+  const r=await fetch(url,opts);
+  if(r.status<500) return r;
+  await new Promise(res=>setTimeout(res,2000));
+  return fetch(url,opts);
+}
 let NAMES={};
 const escAttr=s=>esc(s).replace(/'/g,"&#39;");
 const normLoc=x=>String(x==null?"":x).replace(/\D/g,"").replace(/^0+/,"");
@@ -805,7 +814,7 @@ async function ensureData(){
         prevP=fetch(SUPA+"/rest/v1/rpc/report_filtered",{method:"POST",headers:hdr,body:JSON.stringify({p_from:PREVWIN[0],p_to:PREVWIN[1],p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER,p_platform:PLATFILTER})})
           .then(r=>r.ok?r.json():null).catch(()=>null);
       }
-      const r=await fetch(SUPA+"/rest/v1/rpc/report_filtered",{method:"POST",headers:hdr,body:JSON.stringify({p_from:from,p_to:to,p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER,p_platform:PLATFILTER})});
+      const r=await fetchRetry(SUPA+"/rest/v1/rpc/report_filtered",{method:"POST",headers:hdr,body:JSON.stringify({p_from:from,p_to:to,p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER,p_platform:PLATFILTER})});
       if(!r.ok) throw new Error("HTTP "+r.status);
       const j=await r.json();
       if(j && j.error) throw new Error(j.error);
@@ -952,7 +961,7 @@ async function renderUtms(){
   if(!RANGE){ card.style.display="none"; return; }
   try{
     const hdr={apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"};
-    const r=await fetch(SUPA+"/rest/v1/rpc/report_utms",{method:"POST",headers:hdr,body:JSON.stringify({p_from:RANGE[0],p_to:RANGE[1],p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER,p_platform:PLATFILTER})});
+    const r=await fetchRetry(SUPA+"/rest/v1/rpc/report_utms",{method:"POST",headers:hdr,body:JSON.stringify({p_from:RANGE[0],p_to:RANGE[1],p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER,p_platform:PLATFILTER})});
     if(!r.ok) throw new Error("HTTP "+r.status);
     const j=await r.json(), all=(j&&j.rows)||[];
     if(!all.length){ card.style.display="none"; tabMsg("utmMsg","No checkout entries in this range."); return; }
@@ -1043,7 +1052,7 @@ async function renderPlatforms(){
   if(!RANGE){ card.style.display="none"; return; }
   try{
     const hdr={apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"};
-    const r=await fetch(SUPA+"/rest/v1/rpc/report_platforms",{method:"POST",headers:hdr,body:JSON.stringify({p_from:RANGE[0],p_to:RANGE[1],p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER})});
+    const r=await fetchRetry(SUPA+"/rest/v1/rpc/report_platforms",{method:"POST",headers:hdr,body:JSON.stringify({p_from:RANGE[0],p_to:RANGE[1],p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER})});
     if(!r.ok) throw new Error("HTTP "+r.status);
     const rows=await r.json();
     if(!Array.isArray(rows)||!rows.length){ card.style.display="none"; tabMsg("platMsg","No checkout entries in this range."); return; }
@@ -1057,7 +1066,7 @@ async function renderPlatforms(){
 /* ---------- Checkout errors card (2026-09-24) ----------
    One RPC, report_checkout_errors, with the page's own range and plan / club / platform filters.
    Signed-in users additionally get the person (name, email, phone) from report_checkout_errors_detail.
-   Failure hides the card's body behind a one-line note and never retries (see backlog item 16). */
+   A server error is retried once after 2 s (fetchRetry); if that fails too, the card's body is replaced by a one-line note. Never a loop (backlog item 16). */
 let ERR_DATA=null, ERR_DETAIL=null, ERR_KEY=null, ERR_SHOW=100;
 const ERR_FIELD={firstName:"First name",lastName:"Last name",middleInitial:"Middle initial",email:"Email",cellPhone:"Mobile phone",
   optIn:"Opt-in box",addressLine1:"Address",addressLine2:"Address line 2",city:"City",state:"State",zipCode:"ZIP",birthday:"Birthday",
@@ -1078,7 +1087,7 @@ async function renderErrors(){
   const args={p_from:RANGE[0],p_to:RANGE[1],p_plan:PLANFILTER,p_locations:locArg(),p_platform:PLATFILTER};
   const key=JSON.stringify(args); ERR_KEY=key;
   try{
-    const r=await fetch(SUPA+"/rest/v1/rpc/report_checkout_errors",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(args)});
+    const r=await fetchRetry(SUPA+"/rest/v1/rpc/report_checkout_errors",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(args)});
     if(!r.ok) throw new Error("HTTP "+r.status);
     const j=await r.json(); if(ERR_KEY!==key) return;
     ERR_DATA=j; ERR_DETAIL=null; ERR_SHOW=100;
@@ -1191,7 +1200,7 @@ function drawErrDays(days){
 }
 
 // ---- Website form submissions card (2026-10-18) ------------------------------------------------------
-// One report_web_leads call per page load / filter change, no retry: a failed call shows one line and stops
+// One report_web_leads call per page load / filter change (plus one retry on a server error, fetchRetry): a failed call shows one line and stops
 // (never loops — see the retry-storm backlog item). Aggregates only; the RPC returns no names/emails/phones.
 let WF_DATA=null, WF_KEY=null;
 const WF_FORMS=[["free_trial","Free Trial"],["book_tour","Book a Tour"],["charter","Charter Membership"]];
@@ -1202,7 +1211,7 @@ async function renderWebForms(){
   const args={p_from:RANGE[0],p_to:RANGE[1],p_locations:locArg()};
   const key=JSON.stringify(args); WF_KEY=key;
   try{
-    const r=await fetch(SUPA+"/rest/v1/rpc/report_web_leads",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(args)});
+    const r=await fetchRetry(SUPA+"/rest/v1/rpc/report_web_leads",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(args)});
     if(!r.ok) throw new Error("HTTP "+r.status);
     const j=await r.json(); if(WF_KEY!==key) return;
     WF_DATA=j; drawWebForms();
@@ -1356,7 +1365,7 @@ async function renderOptIn(){
   const key=JSON.stringify(args); OI_KEY=key;
   if(RANGE[1]<OI_START_DAY){ OI_DATA=null; body.innerHTML=`<p class="note" style="margin:6px 0">Opt-in tracking starts ${oiDay(OI_START_DAY)} &mdash; there is nothing to show for this range.</p>`; return; }
   body.innerHTML=`<p class="cap" style="margin:4px 0 10px">Loading&hellip;</p>`;
-  const call=a=>fetch(SUPA+"/rest/v1/rpc/report_opt_in",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(a)});
+  const call=a=>fetchRetry(SUPA+"/rest/v1/rpc/report_opt_in",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(a)});
   try{
     let ignored=false, r=await call(args);
     if(r.status===404 && (args.p_plan||args.p_account)){
