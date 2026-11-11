@@ -24,7 +24,7 @@
     --blue:#4F7AD8; --green:#008300; --accent:#A4D6DE; --red:#e66767; --good:#0ca30c; --teal:#4FC3D6; --conv:#E7973B; }
   *{box-sizing:border-box}
   body{margin:0;background:var(--page);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
-  .wrap{max-width:1160px;margin:0 auto;padding:28px 24px 60px}
+  .wrap{max-width:1360px;margin:0 auto;padding:28px 24px 60px}
   body::before{content:"";position:fixed;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--blue),var(--accent));z-index:40}
   header.top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:6px}
   h1{font-size:22px;margin:0;letter-spacing:-0.01em}
@@ -32,7 +32,7 @@
   .controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   select,button{font:inherit;font-size:13px;color:var(--text);background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:7px 10px;cursor:pointer}
   .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin:22px 0}
-  @media (max-width:920px){.kpis{grid-template-columns:repeat(3,1fr)}}
+  @media (max-width:1180px){.kpis{grid-template-columns:repeat(3,1fr)}}
   @media (max-width:560px){.kpis{grid-template-columns:repeat(2,1fr)}}
   .tile{background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:12px;padding:14px 15px}
   .tile .label{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
@@ -80,10 +80,14 @@
   function refresh(from,to,attempt){
     var c=document.getElementById("spendCard"); if(!c||!from||!to) return;
     var key=from+"|"+to; if(key===lastKey) return; lastKey=key;
+    var msg=document.getElementById("spMsg"), say=function(t){ if(msg){ msg.textContent=t||""; msg.hidden=!t; } };
+    if(c.hidden) say("Loading ad spend…");
     Promise.all([rpc("report_spend",{p_from:from,p_to:to}),rpc("report_filtered",{p_from:from,p_to:to})]).then(function(res){
+      if(key!==lastKey) return;   // a newer range was requested while this one was in flight
       var spend=res[0], filt=res[1];
       var total=Number(spend&&spend.total_spend)||0;
-      if(!total){ c.hidden=true; return; }
+      if(!total){ c.hidden=true; say("No ad spend recorded for this date range. Spend history starts "+SPEND_FLOOR+"."); return; }
+      say("");
       var days=spend.by_day||[]; var rangeDays=dayDiff(from,to); var full=days.length>=rangeDays;
       // Coverage is judged on API-sourced days (report_spend.by_day_api: Meta/Google rows only) when the
       // RPC provides them, so a client-reported OTT row can never mark a day as covered. Falls back to
@@ -151,16 +155,11 @@
       }
       document.getElementById("spDays").innerHTML=html;
       c.hidden=false;
-    }).catch(function(){ lastKey=""; if(!attempt){ setTimeout(function(){refresh(from,to,1);},1200); } else { c.hidden=true; } });
+    }).catch(function(){ if(key!==lastKey) return; lastKey=""; if(!attempt){ setTimeout(function(){refresh(from,to,1);},1200); } else { c.hidden=true; say("Couldn’t load ad spend. Click ↻ Refresh to try again."); } });
   }
-  var of=window.fetch;
-  window.fetch=function(u,o){
-    try{ var url=(typeof u==="string")?u:(u&&u.url)||"";
-      if(url.indexOf("/rpc/report_filtered")>=0&&o&&o.body){ var b=JSON.parse(o.body);
-        if(b.p_from&&b.p_to){ var f=b.p_from,t=b.p_to; clearTimeout(timer); timer=setTimeout(function(){refresh(f,t);},150); } } }
-    catch(e){}
-    return of.apply(this,arguments);
-  };
+  // Tabs (2026-11-10): the Ad Spend tab calls this when it is opened or the dates change while it is open.
+  // It used to fire on every report_filtered request; now nothing loads until the tab is visible.
+  (window.__TABLOADERS=window.__TABLOADERS||{}).spend=function(f,t){ refresh(f,t); };
 })();
 </script>
 <!-- Environment marker: under /dev/ this shows a preview banner, prefixes the title and adds noindex. Dormant at root, so dev/index.html can be promoted to index.html as an unchanged copy. -->
@@ -280,9 +279,13 @@
     var c=document.getElementById("ga4Card"); if(!c||!from||!to) return;
     if(!KEY) return;
     var key=from+"|"+to; if(key===lastKey) return; lastKey=key;
+    var msg=document.getElementById("g4Msg"), say=function(t){ if(msg){ msg.textContent=t||""; msg.hidden=!t; } };
+    if(c.hidden) say("Loading website traffic…");
     rpc("report_ga4_funnel",{p_from:from,p_to:to}).then(function(g){
+      if(key!==lastKey) return;   // a newer range was requested while this one was in flight
       var sessions=Number(g&&g.total_sessions)||0;
-      if(!sessions){ c.hidden=true; return; }
+      if(!sessions){ c.hidden=true; say("No website traffic recorded for this date range. GA4 data for woat.org starts "+GA4_FLOOR+"."); return; }
+      say("");
       var users=Number(g.total_users)||0, newUsers=Number(g.total_new_users)||0;
       var eng=Number(g.total_engaged_sessions)||0, views=Number(g.total_page_views)||0;
       var days=g.ga4_by_day||[], rangeDays=dayDiff(from,to), full=days.length>=rangeDays;
@@ -343,19 +346,12 @@
         panel(jd,"entries","Daily checkout entries","avg "+intf(avgE)+"/day",host);
       }
       c.hidden=false;
-    }).catch(function(){ lastKey=""; if(!attempt){ setTimeout(function(){refresh(from,to,1);},1200); } else { c.hidden=true; } });
+    }).catch(function(){ if(key!==lastKey) return; lastKey=""; if(!attempt){ setTimeout(function(){refresh(from,to,1);},1200); } else { c.hidden=true; say("Couldn’t load website traffic. Click ↻ Refresh to try again."); } });
   }
 
-  var of=window.fetch;
-  window.fetch=function(u,o){
-    try{ var url=(typeof u==="string")?u:(u&&u.url)||"";
-      if(url.indexOf("/rest/v1/rpc/")>=0&&o&&o.headers&&!KEY){ KEY=o.headers.apikey||o.headers.Apikey||""; }
-      if(url.indexOf("/rpc/report_filtered")>=0&&o&&o.body){ var b=JSON.parse(o.body);
-        if(b.p_from&&b.p_to){ var f=b.p_from,t=b.p_to; clearTimeout(timer); timer=setTimeout(function(){refresh(f,t);},150); } }
-    }
-    catch(e){}
-    return of.apply(this,arguments);
-  };
+  // Tabs (2026-11-10): the Website Traffic tab calls this when it is opened or the dates change while it is
+  // open. The page passes its anon key, so this snippet still carries none of its own.
+  (window.__TABLOADERS=window.__TABLOADERS||{}).traffic=function(f,t,key){ if(key&&!KEY) KEY=key; refresh(f,t); };
 })();
       </script>
 
@@ -428,10 +424,30 @@
 
   <div id="status" class="note">Connecting to the database&hellip;</div>
   <div id="dataNotes" style="display:none"></div>
-  <section class="kpis" id="kpis" style="display:none"></section>
 
+  <!-- Tabs (2026-11-10): one section per tab; a tab's queries run only when it is opened, and again only when the
+       dates or filters change while it is open. The filter bar above applies to every tab. -->
+  <div class="layout">
+  <nav class="tabnav" id="tabnav" aria-label="Report sections">
+    <div class="tn-group">Overview</div>
+    <a href="#dashboard" data-tab="dashboard">Dashboard</a>
+    <a href="#clubs" data-tab="clubs">Clubs</a>
+    <div class="tn-group">Marketing</div>
+    <a href="#spend" data-tab="spend">Ad Spend</a>
+    <a href="#traffic" data-tab="traffic">Website Traffic</a>
+    <a href="#sources" data-tab="sources">Campaign Sources</a>
+    <a href="#forms" data-tab="forms">Website Forms</a>
+    <div class="tn-group">Checkout</div>
+    <a href="#platforms" data-tab="platforms">Platforms</a>
+    <a href="#optin" data-tab="optin">SMS Opt-in</a>
+    <a href="#errors" data-tab="errors">Checkout Errors</a>
+  </nav>
+  <main class="panels">
+
+  <section class="tabpanel" data-tab="spend" aria-label="Ad Spend">
+  <p class="cap tabmsg" id="spMsg" hidden></p>
   <!-- Paid ad spend card: reads report_spend + report_filtered; self-hides when there is no spend in range -->
-<div class="card" id="spendCard" hidden style="margin-top:14px">
+<div class="card" id="spendCard" hidden>
   <h2>Paid Ad Spend <span id="spPlat" style="font-weight:600;color:var(--muted);font-size:12px;margin-left:4px"></span></h2>
   <p class="cap" id="spCap"></p>
   <div id="spTiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px"></div>
@@ -442,7 +458,11 @@
   </tr></thead><tbody></tbody></table></div>
   <div id="spDays" style="margin-top:14px"></div>
 </div>
-<div class="card" id="ga4Card" hidden style="margin-top:14px">
+  </section>
+
+  <section class="tabpanel" data-tab="traffic" aria-label="Website Traffic">
+  <p class="cap tabmsg" id="g4Msg" hidden></p>
+<div class="card" id="ga4Card" hidden>
   <h2>Website Traffic <span style="font-weight:600;color:var(--muted);font-size:12px;margin-left:4px">· woat.org</span></h2>
   <p class="cap" id="g4Cap"></p>
   <div id="g4Tiles" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:10px"></div>
@@ -453,7 +473,10 @@
   </tr></thead><tbody></tbody></table></div>
   <div id="g4Days" style="margin-top:14px"></div>
 </div>
+  </section>
 
+  <section class="tabpanel" data-tab="dashboard" aria-label="Dashboard">
+  <section class="kpis" id="kpis" style="display:none"></section>
 <div class="grid2" id="charts" style="display:none">
     <div class="card">
       <h2>Entries vs. Joins over time</h2>
@@ -474,7 +497,9 @@
       </table>
     </div>
   </div>
+  </section>
 
+  <section class="tabpanel" data-tab="clubs" aria-label="Clubs">
   <div class="card" id="locCard" style="display:none">
     <h2>Clubs</h2>
     <p class="cap">Entries, joins and conversion by club for the selected range &mdash; &#8681; CSV exports the whole table; sign in to export a single club&rsquo;s member details.</p>
@@ -488,7 +513,9 @@
       <tbody></tbody>
     </table>
   </div>
+  </section>
 
+  <section class="tabpanel" data-tab="optin" aria-label="SMS Opt-in">
   <!-- SMS opt-in card (2026-11-10, SUP-119): reads report_opt_in (anon, aggregates only, no personal data).
        Follows the page's date range and all four filters. Opt-in is only known from 2026-11-09 07:30 UTC, when the
        checkout box became optional; earlier leads are "not captured" (the box was required and always sent yes),
@@ -509,7 +536,9 @@
     <div id="oiBody"></div>
     <p class="oi-note" id="oiNote"></p>
   </div>
+  </section>
 
+  <section class="tabpanel" data-tab="forms" aria-label="Website Forms">
   <!-- Website form submissions card (2026-10-18): workoutanytime.com Formidable forms (Free Trial, Book a Tour,
        Charter, Contact Us) from web_leads, read through report_web_leads (anon, aggregates only, no personal data).
        Follows the page's date range and club filter; plan / ad account / platform filters do not apply.
@@ -532,7 +561,9 @@
     <p class="cap" id="wfCap">Free Trial, Book a Tour and Charter Membership forms submitted on workoutanytime.com (the leads), plus Contact Us on its own row.</p>
     <div id="wfBody"></div>
   </div>
+  </section>
 
+  <section class="tabpanel" data-tab="errors" aria-label="Checkout Errors">
   <!-- Checkout errors card (2026-09-24): reads report_checkout_errors (anon, no personal data);
        signed-in users also get name / email / phone from report_checkout_errors_detail. -->
   <div class="card" id="errCard" style="display:none">
@@ -540,7 +571,10 @@
     <p class="cap" id="errCap">Every time someone tried to get through checkout and was shown an error: pressing Join and getting an error back instead of the thank-you page, or being stopped by blank or invalid fields, or reaching step 2 on a plan whose pricing came up blank.</p>
     <div id="errBody"></div>
   </div>
+  </section>
 
+  <section class="tabpanel" data-tab="platforms" aria-label="Platforms">
+  <p class="cap tabmsg" id="platMsg" hidden></p>
   <div class="card" id="platCard" style="display:none">
     <h2>By platform</h2>
     <p class="cap">Entries, joins and conversion by checkout channel (credit-card, ACH, in-club kiosk) for the selected range. &ldquo;Untagged&rdquo; = no platform recorded: all imported history before 2026-07-22, plus a small ongoing trickle of live joins whose lead event never arrived.</p>
@@ -549,7 +583,10 @@
       <tbody></tbody>
     </table>
   </div>
+  </section>
 
+  <section class="tabpanel" data-tab="sources" aria-label="Campaign Sources">
+  <p class="cap tabmsg" id="utmMsg" hidden></p>
   <div class="card" id="utmCard" style="display:none">
     <h2>Campaign sources (UTM)</h2>
     <p class="cap">Leads, joins and conversion by source / medium / campaign / ad account / audience for the selected range. &ldquo;Untagged&rdquo; = visits with no utm_* on the URL (all traffic before UTM tracking went live).</p>
@@ -570,6 +607,10 @@
       <tbody></tbody>
     </table>
   </div>
+  </section>
+
+  </main>
+  </div>
 
   <p class="foot" id="foot"></p>
 </div>
@@ -578,6 +619,7 @@
 .controls input[type=date]{background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit}
 .rangebox{display:inline-flex;align-items:center;gap:6px}
 .rangebox .arrow{color:var(--text2)}
+@media (max-width:560px){.rangebox{flex-wrap:wrap;max-width:100%}.rangebox input[type=date]{min-width:0;flex:1 1 120px}}
 th.expcol,td.expcol{width:34px;text-align:center;padding-right:2px}
 .explink{color:var(--blue);text-decoration:none;font-size:15px;display:inline-block;padding:2px 6px;border-radius:6px}
 .explink:hover{background:color-mix(in srgb,var(--blue) 16%,transparent)}
@@ -605,6 +647,32 @@ th[data-sort] .arw{font-size:9px;margin-left:3px;color:var(--blue)}
 #utmFamilyTable th:nth-child(-n+2),#utmFamilyTable td:nth-child(-n+2){max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #utmFamilyTable th:nth-child(2),#utmFamilyTable td:nth-child(2){text-align:left;font-variant-numeric:normal;color:var(--text2)}
 #utmFamilyTable tr.fam-other td,#utmFamilyTable tr.fam-untagged td{color:var(--text2)}
+/* Tabs (2026-11-10): left sidebar on desktop, a scrolling chip row on narrow screens. */
+.layout{display:grid;grid-template-columns:184px minmax(0,1fr);gap:22px;align-items:start;margin-top:16px}
+.tabnav{position:sticky;top:16px;display:flex;flex-direction:column;gap:2px}
+.tn-group{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin:16px 10px 4px}
+.tn-group:first-child{margin-top:2px}
+.tabnav a{display:block;padding:7px 10px;border-radius:8px;color:var(--text2);text-decoration:none;font-size:13.5px;line-height:1.3}
+.tabnav a:hover{background:color-mix(in srgb,var(--blue) 10%,transparent);color:var(--text)}
+.tabnav a[aria-current="page"]{background:color-mix(in srgb,var(--blue) 16%,transparent);color:var(--text);font-weight:600;box-shadow:inset 3px 0 0 var(--blue)}
+.tabnav a:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+.tabpanel{display:none;min-width:0}
+.tabpanel.active{display:block}
+.tabpanel.stale>*{display:none!important}   /* its data failed to load: the page's status line says so */
+.tabpanel>*+*{margin-top:18px}
+.tabpanel>.grid2{margin-bottom:0}
+.tabpanel>.kpis{margin:0 0 18px}
+.tabmsg{margin:4px 2px 0}
+@media (max-width:900px){
+  .layout{grid-template-columns:minmax(0,1fr);gap:12px;margin-top:10px}
+  .tabnav{top:0;z-index:25;flex-direction:row;overflow-x:auto;gap:6px;background:var(--page);padding:8px 0;scrollbar-width:none}
+  .tabnav::-webkit-scrollbar{display:none}
+  .tn-group{display:none}
+  .tabnav a{flex:none;white-space:nowrap;border:1px solid var(--border);padding:6px 11px;font-size:13px}
+  .tabnav a[aria-current="page"]{box-shadow:none;border-color:var(--blue)}
+  /* wide tables scroll inside their card instead of widening the whole page */
+  .tabpanel .card{overflow-x:auto}
+}
 .msel{position:relative;display:inline-block}
 #locBtn{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .msel-panel{position:absolute;top:calc(100% + 4px);left:0;z-index:30;width:264px;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.28);padding:8px;display:none}
@@ -658,6 +726,15 @@ let DATA=null, RANGE=null, AUTHED=false, DETAIL_CACHE=null, DETAIL_KEY=null, PLA
 let PREV=null, PREVWIN=null, CLUBFILTER="", UTMHIDE=false, LOCFILTER=[], ACCOUNTS=[];
 const SHOWDELTAS=false; // period-over-period % change on KPIs (off for now)
 const locArg=()=>LOCFILTER.length?LOCFILTER:null;
+// One retry for a server error (2026-11-10). On this database a statement timeout (Postgres 57014 → HTTP 500) usually
+// means other queries were running at the same moment, so the same call 2 s later normally succeeds. Exactly one
+// retry, never a loop; 4xx (bad input, missing function) is returned as-is.
+async function fetchRetry(url,opts){
+  const r=await fetch(url,opts);
+  if(r.status<500) return r;
+  await new Promise(res=>setTimeout(res,2000));
+  return fetch(url,opts);
+}
 let NAMES={};
 const escAttr=s=>esc(s).replace(/'/g,"&#39;");
 const normLoc=x=>String(x==null?"":x).replace(/\D/g,"").replace(/^0+/,"");
@@ -668,7 +745,7 @@ function clubLabel(loc){
 async function loadNames(){
   try{
     const r=await fetch(SUPA+"/rest/v1/rpc/club_names_map",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:"{}"});
-    if(r.ok){ const j=await r.json(); if(j && typeof j==="object"){ NAMES=j; if(DATA) drawBars(); if(typeof locUpdateLabel==="function"){ locUpdateLabel(); const lp=document.getElementById("locPanel"); if(lp&&lp.classList.contains("open")) renderLocList(); } } }
+    if(r.ok){ const j=await r.json(); if(j && typeof j==="object"){ NAMES=j; updateHeader(); if(DATA) drawBars(); if(typeof locUpdateLabel==="function"){ locUpdateLabel(); const lp=document.getElementById("locPanel"); if(lp&&lp.classList.contains("open")) renderLocList(); } } }
   }catch(_){}
 }
 loadNames();
@@ -694,31 +771,109 @@ function prevWindow(from,to){
   const pf=new Date(f); pf.setDate(pf.getDate()-len);
   return [ymd(pf), from];
 }
-async function load(from,to){
-  const status=document.getElementById("status"); RANGE=[from,to];
-  DETAIL_CACHE=null; DETAIL_KEY=null; PREV=null;
-  status.style.display="block"; status.textContent="Loading "+from+" → "+to+" …";
-  try{
-    const hdr={apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"};
-    // Kick off the previous-period fetch in parallel (for period-over-period deltas).
-    let prevP=null;
-    if(SHOWDELTAS){
-      PREVWIN=prevWindow(from,to);
-      prevP=fetch(SUPA+"/rest/v1/rpc/report_filtered",{method:"POST",headers:hdr,body:JSON.stringify({p_from:PREVWIN[0],p_to:PREVWIN[1],p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER,p_platform:PLATFILTER})})
-        .then(r=>r.ok?r.json():null).catch(()=>null);
-    }
-    const r=await fetch(SUPA+"/rest/v1/rpc/report_filtered",{method:"POST",headers:hdr,body:JSON.stringify({p_from:from,p_to:to,p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER,p_platform:PLATFILTER})});
-    if(!r.ok) throw new Error("HTTP "+r.status);
-    DATA=await r.json();
-    if(DATA.error) throw new Error(DATA.error);
-    status.style.display="none"; render();
-    if(prevP) prevP.then(p=>{ if(p&&!p.error){ PREV=p; applyDeltas(); } });
-  }catch(e){ status.innerHTML="Couldn't load the report ("+e.message+").<br>Click &#8635; Refresh to try again."; }
+// ---- Tabs (2026-11-10) ------------------------------------------------------------------------------------
+// The page used to fire every card's RPCs on each load (about ten at once), which is what pushed "All time" past
+// the anon statement_timeout. Now each tab runs only its own queries, when it is opened, and re-runs them only
+// when the dates or filters have changed since it last ran (TAB_KEYS). report_filtered (DATA) is shared by the
+// tabs that need it and fetched once per filter state (ensureData). Coverage notes stay page-wide.
+const TABS={
+  dashboard:{needsData:true, run:()=>renderDashboard()},
+  clubs:    {needsData:true, run:()=>{ document.getElementById("locCard").style.display="block"; drawBars(); }},
+  spend:    {run:(f,t)=>tabLoader("spend",f,t)},
+  traffic:  {run:(f,t)=>tabLoader("traffic",f,t,ANON)},
+  sources:  {run:(f,t)=>{ renderUtms(); tabLoader("promo",f,t); }},
+  forms:    {run:()=>renderWebForms()},
+  platforms:{run:()=>renderPlatforms()},
+  optin:    {run:()=>renderOptIn()},
+  errors:   {needsData:true, run:()=>renderErrors()}   // "share of entries" divides by the clubs' entries in DATA
+};
+const tabFromHash=()=>{ let h=location.hash.replace(/^#/,""); try{ h=decodeURIComponent(h); }catch(_){} return Object.prototype.hasOwnProperty.call(TABS,h)?h:null; };
+let TAB=tabFromHash()||"dashboard", TAB_KEYS={}, DATA_KEY=null, DATA_P=null;
+const filterKey=()=>JSON.stringify([RANGE,PLANFILTER,ACCOUNTFILTER,PLATFILTER,LOCFILTER.slice().sort()]);
+function markStale(tab,on){ const p=document.querySelector('.tabpanel[data-tab="'+tab+'"]'); if(p) p.classList.toggle("stale",!!on); }
+function tabLoader(name,f,t,key){ const fn=(window.__TABLOADERS||{})[name]; if(fn) fn(f,t,key); }
+function showTab(){
+  document.querySelectorAll(".tabpanel").forEach(p=>p.classList.toggle("active",p.dataset.tab===TAB));
+  document.querySelectorAll("#tabnav a").forEach(a=>{ if(a.dataset.tab===TAB) a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current"); });
+  const cur=document.querySelector('#tabnav a[aria-current="page"]');
+  if(cur && getComputedStyle(document.getElementById("tabnav")).flexDirection==="row") cur.scrollIntoView({block:"nearest",inline:"nearest"});
 }
+async function ensureData(){
+  const k=filterKey(), status=document.getElementById("status");
+  if(DATA && DATA_KEY===k){ status.style.display="none"; return true; }   // cached; clear any error from a later failed range
+  if(DATA_P && DATA_P.k===k) return DATA_P.p;
+  const [from,to]=RANGE;
+  status.style.display="block"; status.textContent="Loading "+from+" → "+to+" …";
+  const p=(async()=>{
+    try{
+      const hdr={apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"};
+      // Kick off the previous-period fetch in parallel (for period-over-period deltas).
+      let prevP=null; PREV=null;
+      if(SHOWDELTAS){
+        PREVWIN=prevWindow(from,to);
+        prevP=fetch(SUPA+"/rest/v1/rpc/report_filtered",{method:"POST",headers:hdr,body:JSON.stringify({p_from:PREVWIN[0],p_to:PREVWIN[1],p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER,p_platform:PLATFILTER})})
+          .then(r=>r.ok?r.json():null).catch(()=>null);
+      }
+      const r=await fetchRetry(SUPA+"/rest/v1/rpc/report_filtered",{method:"POST",headers:hdr,body:JSON.stringify({p_from:from,p_to:to,p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER,p_platform:PLATFILTER})});
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      const j=await r.json();
+      if(j && j.error) throw new Error(j.error);
+      if(filterKey()!==k) return false;   // the dates or filters changed while this was in flight
+      DATA=j; DATA_KEY=k; status.style.display="none";
+      if(prevP) prevP.then(pp=>{ if(pp&&!pp.error&&DATA_KEY===k){ PREV=pp; applyDeltas(); } });
+      return true;
+    }catch(e){
+      if(filterKey()===k) status.innerHTML="Couldn't load the report ("+esc(e.message)+").<br>Click &#8635; Refresh to try again.";
+      return false;
+    }finally{ if(DATA_P && DATA_P.k===k) DATA_P=null; }
+  })();
+  DATA_P={k,p}; return p;
+}
+async function runTab(){
+  showTab();
+  if(!RANGE) return;
+  const tab=TAB, def=TABS[tab], k=filterKey();
+  if(TAB_KEYS[tab]===k) return;
+  TAB_KEYS[tab]=k;
+  if(def.needsData){
+    const ok=await ensureData();
+    if(!ok){
+      if(TAB_KEYS[tab]===k) TAB_KEYS[tab]=null;
+      // The header already names the new range, so never leave the previous range's numbers on screen under it.
+      if(filterKey()===k) markStale(tab,true);
+      return;
+    }
+    if(filterKey()!==k) return;   // superseded by a newer load()
+    markStale(tab,false);
+  } else if(!(DATA_P && DATA_P.k===k)) {
+    document.getElementById("status").style.display="none";   // that line belongs to the report_filtered tabs
+  }
+  def.run(RANGE[0],RANGE[1]);
+}
+async function load(from,to){
+  RANGE=[from,to];
+  DETAIL_CACHE=null; DETAIL_KEY=null;
+  updateHeader(); renderDataNotes();
+  return runTab();
+}
+function updateHeader(){
+  if(!RANGE) return;
+  document.getElementById("sub").textContent="iCart online joins · "+rangeLabel()+(PLANFILTER?(" · "+PLANFILTER+" campaign"):"")+(ACCOUNTFILTER?(" · "+ACCOUNTFILTER):"")+(PLATFILTER?(" · "+({cc:"Credit card",ach:"ACH",kiosk:"Kiosk"}[PLATFILTER]||PLATFILTER)):"")+(LOCFILTER.length?(" · "+(LOCFILTER.length===1?(NAMES[LOCFILTER[0]]||("Club "+LOCFILTER[0])):(LOCFILTER.length+" locations"))):"");
+  document.getElementById("foot").textContent="Live from the iCart database · unique-person counts · range "+RANGE[0]+" to "+RANGE[1]+".";
+}
+document.getElementById("tabnav").addEventListener("click",e=>{
+  const a=e.target.closest("a[data-tab]"); if(!a||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||e.button) return;
+  e.preventDefault();
+  if(a.dataset.tab===TAB) return;
+  history.pushState(null,"","#"+a.dataset.tab);
+  TAB=a.dataset.tab; runTab();
+});
+window.addEventListener("popstate",()=>{ const t=tabFromHash()||"dashboard"; if(t!==TAB){ TAB=t; runTab(); } });
+window.addEventListener("hashchange",()=>{ const t=tabFromHash()||"dashboard"; if(t!==TAB){ TAB=t; runTab(); } });
 
 function rangeLabel(){
-  const todayStr=ymd(new Date()), toStr=(DATA.to>todayStr)?todayStr:DATA.to;
-  const f=new Date(DATA.from+"T00:00:00"), t=new Date(toStr+"T00:00:00"), o={month:"short",day:"numeric"};
+  const todayStr=ymd(new Date()), toStr=(RANGE[1]>todayStr)?todayStr:RANGE[1];
+  const f=new Date(RANGE[0]+"T00:00:00"), t=new Date(toStr+"T00:00:00"), o={month:"short",day:"numeric"};
   // Show the start year too when the range crosses a year boundary ("Dec 1, 2024 – Jan 31, 2025"),
   // otherwise keep the short form ("Jan 1 – Sep 16, 2026"). Without this, "All time" read as year-to-date.
   const fo=(f.getFullYear()!==t.getFullYear())?Object.assign({year:"numeric"},o):o;
@@ -792,17 +947,13 @@ function applyDeltas(){
     el.title="Previous comparable period: "+PREVWIN[0]+" → "+PREVWIN[1];
   });
 }
-function render(){
+function renderDashboard(){
   document.getElementById("kpis").style.display="grid";
   document.getElementById("charts").style.display="grid";
-  document.getElementById("locCard").style.display="block";
-  const s=DATA.summary||{}, conv=n(s.conversion_rate);
-  document.getElementById("sub").textContent="iCart online joins · "+rangeLabel()+(PLANFILTER?(" · "+PLANFILTER+" campaign"):"")+(ACCOUNTFILTER?(" · "+ACCOUNTFILTER):"")+(PLATFILTER?(" · "+({cc:"Credit card",ach:"ACH",kiosk:"Kiosk"}[PLATFILTER]||PLATFILTER)):"")+(LOCFILTER.length?(" · "+(LOCFILTER.length===1?(NAMES[LOCFILTER[0]]||("Club "+LOCFILTER[0])):(LOCFILTER.length+" locations"))):"");
+  const s=DATA.summary||{};
   document.getElementById("kpis").innerHTML=kpiDefs(s).map(k=>`<div class="tile${k.muted?" muted":""}"${k.title?` title="${escAttr(k.title)}"`:""}><div class="label">${k.label}</div><div class="val">${k.val}</div>${SHOWDELTAS?`<div class="delta" id="d_${k.key}"></div>`:""}</div>`).join("");
   if(SHOWDELTAS) applyDeltas();
-  renderDataNotes();
-  drawLine(); renderPlans(); drawBars(); renderPlatforms(); renderUtms(); renderErrors(); renderWebForms(); renderOptIn();
-  document.getElementById("foot").textContent="Live from the iCart database · unique-person counts · range "+DATA.from+" to "+DATA.to+".";
+  drawLine(); renderPlans();
 }
 
 async function renderUtms(){
@@ -810,10 +961,11 @@ async function renderUtms(){
   if(!RANGE){ card.style.display="none"; return; }
   try{
     const hdr={apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"};
-    const r=await fetch(SUPA+"/rest/v1/rpc/report_utms",{method:"POST",headers:hdr,body:JSON.stringify({p_from:RANGE[0],p_to:RANGE[1],p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER,p_platform:PLATFILTER})});
+    const r=await fetchRetry(SUPA+"/rest/v1/rpc/report_utms",{method:"POST",headers:hdr,body:JSON.stringify({p_from:RANGE[0],p_to:RANGE[1],p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER,p_platform:PLATFILTER})});
     if(!r.ok) throw new Error("HTTP "+r.status);
     const j=await r.json(), all=(j&&j.rows)||[];
-    if(!all.length){ card.style.display="none"; return; }
+    if(!all.length){ card.style.display="none"; tabMsg("utmMsg","No checkout entries in this range."); return; }
+    tabMsg("utmMsg","");
     const isUntagged=x=>x.utm_account==="(none)"&&x.utm_source==="(none)"&&x.utm_medium==="(none)"&&x.utm_campaign==="(none)"&&x.utm_audience==="(none)";
     const rows=UTMHIDE?all.filter(x=>!isUntagged(x)):all;
     card.style.display="block";
@@ -822,8 +974,9 @@ async function renderUtms(){
     renderUtmFamilies(rows, famHost);
     const lab=v=>(v==="(none)"?'<span style="color:var(--muted)">Untagged</span>':esc(v));
     tb.innerHTML=rows.map(x=>`<tr><td title="${escAttr(x.utm_source)}">${lab(x.utm_source)}</td><td title="${escAttr(x.utm_medium)}">${lab(x.utm_medium)}</td><td title="${escAttr(x.utm_campaign)}">${lab(x.utm_campaign)}</td><td title="${escAttr(x.utm_account)}">${lab(x.utm_account)}</td><td title="${escAttr(x.utm_audience)}">${lab(x.utm_audience)}</td><td>${fmt(x.entries)}</td><td>${fmt(x.joins)}</td><td>${fmt(x.lost_joins)}</td><td>${pct(x.conversion_rate)}</td><td>${money(x.join_contract_value)}</td></tr>`).join("");
-  }catch(e){ card.style.display="none"; }
+  }catch(e){ card.style.display="none"; tabMsg("utmMsg","Couldn’t load campaign sources ("+e.message+"). Click ↻ Refresh to try again."); }
 }
+function tabMsg(id,text){ const m=document.getElementById(id); if(m){ m.textContent=text||""; m.hidden=!text; } }
 
 // ---- Source families (2026-09-18) --------------------------------------------------------------
 // One advertiser per row, built from the report_utms rows the grid is about to show (so "Hide untagged"
@@ -899,21 +1052,21 @@ async function renderPlatforms(){
   if(!RANGE){ card.style.display="none"; return; }
   try{
     const hdr={apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"};
-    const r=await fetch(SUPA+"/rest/v1/rpc/report_platforms",{method:"POST",headers:hdr,body:JSON.stringify({p_from:RANGE[0],p_to:RANGE[1],p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER})});
+    const r=await fetchRetry(SUPA+"/rest/v1/rpc/report_platforms",{method:"POST",headers:hdr,body:JSON.stringify({p_from:RANGE[0],p_to:RANGE[1],p_plan:PLANFILTER,p_locations:locArg(),p_account:ACCOUNTFILTER})});
     if(!r.ok) throw new Error("HTTP "+r.status);
     const rows=await r.json();
-    if(!Array.isArray(rows)||!rows.length){ card.style.display="none"; return; }
-    card.style.display="block";
+    if(!Array.isArray(rows)||!rows.length){ card.style.display="none"; tabMsg("platMsg","No checkout entries in this range."); return; }
+    card.style.display="block"; tabMsg("platMsg","");
     const PLAT={cc:"Credit card",ach:"ACH",kiosk:"Kiosk"};
     const lab=p=>(p==="(untagged)"?'<span style="color:var(--muted)">Untagged</span>':(PLAT[p]||esc(p)));
     tb.innerHTML=rows.map(x=>`<tr><td>${lab(x.platform)}</td><td>${fmt(x.entries)}</td><td>${fmt(x.joins)}</td><td>${fmt(x.lost_joins)}</td><td>${pct(x.conversion_rate)}</td><td>${money(x.join_contract_value)}</td></tr>`).join("");
-  }catch(e){ card.style.display="none"; }
+  }catch(e){ card.style.display="none"; tabMsg("platMsg","Couldn’t load the platform breakdown ("+e.message+"). Click ↻ Refresh to try again."); }
 }
 
 /* ---------- Checkout errors card (2026-09-24) ----------
    One RPC, report_checkout_errors, with the page's own range and plan / club / platform filters.
    Signed-in users additionally get the person (name, email, phone) from report_checkout_errors_detail.
-   Failure hides the card's body behind a one-line note and never retries (see backlog item 16). */
+   A server error is retried once after 2 s (fetchRetry); if that fails too, the card's body is replaced by a one-line note. Never a loop (backlog item 16). */
 let ERR_DATA=null, ERR_DETAIL=null, ERR_KEY=null, ERR_SHOW=100;
 const ERR_FIELD={firstName:"First name",lastName:"Last name",middleInitial:"Middle initial",email:"Email",cellPhone:"Mobile phone",
   optIn:"Opt-in box",addressLine1:"Address",addressLine2:"Address line 2",city:"City",state:"State",zipCode:"ZIP",birthday:"Birthday",
@@ -934,7 +1087,7 @@ async function renderErrors(){
   const args={p_from:RANGE[0],p_to:RANGE[1],p_plan:PLANFILTER,p_locations:locArg(),p_platform:PLATFILTER};
   const key=JSON.stringify(args); ERR_KEY=key;
   try{
-    const r=await fetch(SUPA+"/rest/v1/rpc/report_checkout_errors",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(args)});
+    const r=await fetchRetry(SUPA+"/rest/v1/rpc/report_checkout_errors",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(args)});
     if(!r.ok) throw new Error("HTTP "+r.status);
     const j=await r.json(); if(ERR_KEY!==key) return;
     ERR_DATA=j; ERR_DETAIL=null; ERR_SHOW=100;
@@ -1047,7 +1200,7 @@ function drawErrDays(days){
 }
 
 // ---- Website form submissions card (2026-10-18) ------------------------------------------------------
-// One report_web_leads call per page load / filter change, no retry: a failed call shows one line and stops
+// One report_web_leads call per page load / filter change (plus one retry on a server error, fetchRetry): a failed call shows one line and stops
 // (never loops — see the retry-storm backlog item). Aggregates only; the RPC returns no names/emails/phones.
 let WF_DATA=null, WF_KEY=null;
 const WF_FORMS=[["free_trial","Free Trial"],["book_tour","Book a Tour"],["charter","Charter Membership"]];
@@ -1058,7 +1211,7 @@ async function renderWebForms(){
   const args={p_from:RANGE[0],p_to:RANGE[1],p_locations:locArg()};
   const key=JSON.stringify(args); WF_KEY=key;
   try{
-    const r=await fetch(SUPA+"/rest/v1/rpc/report_web_leads",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(args)});
+    const r=await fetchRetry(SUPA+"/rest/v1/rpc/report_web_leads",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(args)});
     if(!r.ok) throw new Error("HTTP "+r.status);
     const j=await r.json(); if(WF_KEY!==key) return;
     WF_DATA=j; drawWebForms();
@@ -1212,7 +1365,7 @@ async function renderOptIn(){
   const key=JSON.stringify(args); OI_KEY=key;
   if(RANGE[1]<OI_START_DAY){ OI_DATA=null; body.innerHTML=`<p class="note" style="margin:6px 0">Opt-in tracking starts ${oiDay(OI_START_DAY)} &mdash; there is nothing to show for this range.</p>`; return; }
   body.innerHTML=`<p class="cap" style="margin:4px 0 10px">Loading&hellip;</p>`;
-  const call=a=>fetch(SUPA+"/rest/v1/rpc/report_opt_in",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(a)});
+  const call=a=>fetchRetry(SUPA+"/rest/v1/rpc/report_opt_in",{method:"POST",headers:{apikey:ANON,Authorization:"Bearer "+ANON,"Content-Type":"application/json"},body:JSON.stringify(a)});
   try{
     let ignored=false, r=await call(args);
     if(r.status===404 && (args.p_plan||args.p_account)){
@@ -1385,8 +1538,8 @@ function drawBars(){
 }
 
 function csvCell(v){v=(v==null?"":String(v));return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
-function exportCSV(){
-  if(!DATA)return;
+async function exportCSV(){
+  if(!RANGE || !(await ensureData())) return;
   const rows=sortClubRows(clubRows()), head=["Location","Club #","Entries","Joins","Lost","Conversion %","Join Value","Lead Value"], lines=[head.join(",")];
   rows.forEach(r=>lines.push([clubLabel(r.location),r.location,r.entries,r.joins,r.lost,r.conv,r.value,r.leadval].map(csvCell).join(",")));
   const blob=new Blob([lines.join("\n")],{type:"text/csv;charset=utf-8"}), a=document.createElement("a");
@@ -1465,7 +1618,7 @@ function locUpdateLabel(){
   list.addEventListener("change",(e)=>{ const cb=e.target; if(cb&&cb.type==="checkbox"){ const v=cb.value; if(cb.checked){ if(!LOCFILTER.includes(v)) LOCFILTER.push(v); } else { LOCFILTER=LOCFILTER.filter(x=>x!==v); } locUpdateLabel(); reload(); } });
   document.getElementById("locClear").onclick=(e)=>{ e.preventDefault(); LOCFILTER=[]; locUpdateLabel(); renderLocList(); reload(); };
 })();
-document.getElementById("refresh").onclick=()=>{ if(RANGE) load(RANGE[0],RANGE[1]); };
+document.getElementById("refresh").onclick=()=>{ if(!RANGE) return; TAB_KEYS={}; DATA_KEY=null; load(RANGE[0],RANGE[1]); };
 (function(){
   const cf=document.getElementById("clubFilter");
   if(cf) cf.addEventListener("input",()=>{ CLUBFILTER=cf.value||""; if(DATA) drawBars(); });
@@ -1475,7 +1628,8 @@ document.getElementById("refresh").onclick=()=>{ if(RANGE) load(RANGE[0],RANGE[1
 document.getElementById("themeBtn").onclick=()=>{
   const cur=document.documentElement.getAttribute("data-theme");
   const next=cur==="dark"?"light":(cur==="light"?"dark":(matchMedia("(prefers-color-scheme: dark)").matches?"light":"dark"));
-  document.documentElement.setAttribute("data-theme",next); if(DATA) render();
+  // SVG colours are read from the theme when drawn, so every tab redraws (from cache where it can) when next shown.
+  document.documentElement.setAttribute("data-theme",next); TAB_KEYS={}; runTab();
 };
 (function(){ const [f,t]=presetRange("30"); load(f,t); })();
 
@@ -1491,7 +1645,7 @@ async function refreshAuthUI(){
   if(authed){ authBtn.textContent="⏻ "+(session.user.email||"Sign out"); authBtn.title="Signed in — click to sign out"; authPanel.style.display="none"; }
   else { authBtn.innerHTML="&#128274; Member login"; authBtn.title="Sign in to export full customer details"; }
   if(DATA) drawBars();   // show/hide per-club export links
-  if(DATA) renderErrors();   // checkout-error log gains / loses the person columns
+  if(TAB==="errors"){ if(DATA) renderErrors(); } else TAB_KEYS.errors=null;   // checkout-error log gains / loses the person columns
 }
 authBtn.onclick=async()=>{
   const session=await currentSession();
@@ -1570,11 +1724,12 @@ refreshAuthUI();
   function lab(p){return p==='STANDARD'?'Standard (no promo)':(p||'(no plan)');}
   function ensureCard(){var uc=document.getElementById('utmCard');if(!uc)return null;var pc=document.getElementById('promoCard');if(!pc){pc=document.createElement('div');pc.id='promoCard';pc.className='card';uc.parentNode.insertBefore(pc,uc.nextSibling);}else if(pc.previousElementSibling!==uc){uc.parentNode.insertBefore(pc,uc.nextSibling);}return pc;}
   function render(rows){var pc=ensureCard();if(!pc)return;var b='';(rows||[]).forEach(function(r){b+='<tr><td>'+lab(r.promo)+'</td><td style="text-align:right;font-variant-numeric:tabular-nums">'+num(r.entries)+'</td><td style="text-align:right;font-variant-numeric:tabular-nums">'+num(r.joins)+'</td><td style="text-align:right;font-variant-numeric:tabular-nums">'+num(r.lost)+'</td><td style="text-align:right;font-variant-numeric:tabular-nums">'+(Number(r.conversion_rate)||0).toFixed(1)+'%</td><td style="text-align:right;font-variant-numeric:tabular-nums">'+money(r.join_contract_value)+'</td></tr>';});pc.innerHTML='<h2>By promo</h2><div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left">Promo</th><th style="text-align:right">Entries</th><th style="text-align:right">Joins</th><th style="text-align:right">Lost</th><th style="text-align:right">Conv.</th><th style="text-align:right">Join value</th></tr></thead><tbody>'+b+'</tbody></table></div><div style="color:var(--muted);font-size:12px;margin-top:8px">Membership promo parsed from the plan name, by unique person for the selected range.</div>';}
-  function load(f,t){if(!f||!t||busy)return;busy=true;client.rpc('report_promos',{p_from:f,p_to:t}).then(function(r){busy=false;if(!r.error&&r.data)render(r.data);}).catch(function(){busy=false;});}
-  var of=window.fetch;
-  window.fetch=function(){try{var a=arguments,u=(a[0]&&a[0].url)||a[0]||'';if(typeof u==='string'&&u.indexOf('/rpc/report_filtered')>=0&&a[1]&&a[1].body){var bd=JSON.parse(a[1].body);var ks=Object.keys(bd);var fk=ks.filter(function(k){return /from/i.test(k);})[0],tk=ks.filter(function(k){return /to/i.test(k);})[0];var f=bd[fk],t=bd[tk];if(f&&t&&(f!==cf||t!==ct)){cf=f;ct=t;setTimeout(function(){load(cf,ct);},350);}}}catch(e){}return of.apply(this,arguments);};
+  var pend=null; function next(){if(pend){var p=pend;pend=null;load(p[0],p[1]);}}
+  function load(f,t){if(!f||!t)return;if(busy){pend=[f,t];return;}busy=true;client.rpc('report_promos',{p_from:f,p_to:t}).then(function(r){busy=false;if(!r.error&&r.data&&f===cf&&t===ct)render(r.data);next();}).catch(function(){busy=false;next();});}
+  // Tabs (2026-11-10): loaded by the Campaign Sources tab when it is opened or the dates change while it is open.
+  window.__TABLOADERS=window.__TABLOADERS||{};
+  window.__TABLOADERS.promo=function(f,t){if(f&&t&&(f!==cf||t!==ct||!document.getElementById('promoCard'))){cf=f;ct=t;load(cf,ct);}};
   try{var w=document.querySelector('.wrap');if(w){new MutationObserver(function(){if(cf&&ct)ensureCard();}).observe(w,{childList:true});}}catch(e){}
-  setTimeout(function(){if(!cf){var d=new Date();var t=new Date(d.getTime()+864e5),f=new Date(d.getTime()-30*864e5);var fmt=function(x){return x.toISOString().slice(0,10);};load(fmt(f),fmt(t));}},2200);
  }catch(e){}
 })();
 </script>
