@@ -859,7 +859,7 @@ async function load(from,to){
 function updateHeader(){
   if(!RANGE) return;
   document.getElementById("sub").textContent="iCart online joins · "+rangeLabel()+(PLANFILTER?(" · "+PLANFILTER+" campaign"):"")+(ACCOUNTFILTER?(" · "+ACCOUNTFILTER):"")+(PLATFILTER?(" · "+({cc:"Credit card",ach:"ACH",kiosk:"Kiosk"}[PLATFILTER]||PLATFILTER)):"")+(LOCFILTER.length?(" · "+(LOCFILTER.length===1?(NAMES[LOCFILTER[0]]||("Club "+LOCFILTER[0])):(LOCFILTER.length+" locations"))):"");
-  document.getElementById("foot").textContent="Live from the iCart database · unique-person counts · range "+RANGE[0]+" to "+RANGE[1]+".";
+  document.getElementById("foot").textContent="Live from the iCart database · unique-person counts · range "+RANGE[0]+" to "+rangeEnd()+".";
 }
 document.getElementById("tabnav").addEventListener("click",e=>{
   const a=e.target.closest("a[data-tab]"); if(!a||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||e.button) return;
@@ -871,8 +871,10 @@ document.getElementById("tabnav").addEventListener("click",e=>{
 window.addEventListener("popstate",()=>{ const t=tabFromHash()||"dashboard"; if(t!==TAB){ TAB=t; runTab(); } });
 window.addEventListener("hashchange",()=>{ const t=tabFromHash()||"dashboard"; if(t!==TAB){ TAB=t; runTab(); } });
 
+// Last day to show for the range. The query's upper bound is tomorrow (see presetRange), so header and footer clamp it to today.
+function rangeEnd(){ const todayStr=ymd(new Date()); return (RANGE[1]>todayStr)?todayStr:RANGE[1]; }
 function rangeLabel(){
-  const todayStr=ymd(new Date()), toStr=(RANGE[1]>todayStr)?todayStr:RANGE[1];
+  const toStr=rangeEnd();
   const f=new Date(RANGE[0]+"T00:00:00"), t=new Date(toStr+"T00:00:00"), o={month:"short",day:"numeric"};
   // Show the start year too when the range crosses a year boundary ("Dec 1, 2024 – Jan 31, 2025"),
   // otherwise keep the short form ("Jan 1 – Sep 16, 2026"). Without this, "All time" read as year-to-date.
